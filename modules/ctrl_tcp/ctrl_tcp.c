@@ -249,7 +249,7 @@ static void tcp_conn_handler(const struct sa *peer, void *arg)
 	st->tc = mem_deref(st->tc);
 	st->ns = mem_deref(st->ns);
 
-	(void)tcp_accept(&st->tc, st->ts, NULL, NULL, tcp_close_handler, st);
+	(void)re_tcp_accept(&st->tc, st->ts, NULL, NULL, tcp_close_handler, st);
 	(void)netstring_insert(&st->ns, st->tc, 0, command_handler, st);
 }
 

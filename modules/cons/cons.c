@@ -72,7 +72,7 @@ static void udp_recv(const struct sa *src, struct mbuf *mb, void *arg)
 
 	if (mbr->end > 0) {
 		mbr->pos = 0;
-		(void)udp_send(st->us, src, mbr);
+		(void)re_udp_send(st->us, src, mbr);
 	}
 
 	mem_deref(mbr);
@@ -139,7 +139,7 @@ static void tcp_conn_handler(const struct sa *peer, void *arg)
 
 	/* only one connection allowed */
 	st->tc = mem_deref(st->tc);
-	(void)tcp_accept(&st->tc, st->ts, NULL, tcp_recv_handler,
+	(void)re_tcp_accept(&st->tc, st->ts, NULL, tcp_recv_handler,
 			 tcp_close_handler, st);
 }
 
@@ -198,7 +198,7 @@ static int output_handler(const char *str)
 
 	if (sa_isset(&cons->udp_peer, SA_ALL)) {
 		mb->pos = 0;
-		err |= udp_send(cons->us, &cons->udp_peer, mb);
+		err |= re_udp_send(cons->us, &cons->udp_peer, mb);
 	}
 
 	if (cons->tc) {

@@ -448,7 +448,7 @@ static int on_send_packet(const zrtp_stream_t *stream,
 
 	err = udp_send_helper(st->rtpsock, &st->raddr, mb, st->uh_rtp);
 	if (err) {
-		warning("zrtp: udp_send %u bytes (%m)\n",
+		warning("zrtp: re_udp_send %u bytes (%m)\n",
 			rtp_packet_length, err);
 	}
 

@@ -113,7 +113,7 @@ static void decode_dns_query(struct dns_server *srv,
 
 	mb->pos = start;
 
-	(void)udp_send(srv->us, src, mb);
+	(void)re_udp_send(srv->us, src, mb);
 
  out:
 	list_clear(&rrl);

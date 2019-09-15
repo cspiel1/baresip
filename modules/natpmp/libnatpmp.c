@@ -78,7 +78,7 @@ static void timeout(void *arg)
 	np->n++;
 
 	np->mb->pos = 0;
-	err = udp_send(np->us, &np->srv, np->mb);
+	err = re_udp_send(np->us, &np->srv, np->mb);
 	if (err) {
 		completed(np, err, NULL);
 	}
@@ -150,7 +150,7 @@ static int natpmp_init(struct natpmp_req *np, const struct sa *srv,
 	np->resph = resph;
 	np->arg   = arg;
 
-	udp_connect(np->us, srv);
+	re_udp_connect(np->us, srv);
 
 	np->mb = mbuf_alloc(512);
 	if (!np->mb)
