@@ -40,7 +40,7 @@
 
 
 static const char *conf_path = NULL;
-static struct conf *conf_obj;
+static struct conf *conf_obj = NULL;
 
 
 /**
@@ -332,13 +332,18 @@ int conf_get_float(const struct conf *conf, const char *name, double *val)
  */
 int conf_configure(void)
 {
+#ifndef EXTCONFIG
 	char path[FS_PATH_MAX], file[FS_PATH_MAX];
+#else
+	char *file = NULL;
+#endif
 	int err;
 
 #if defined (WIN32)
 	dbg_init(DBG_INFO, DBG_NONE);
 #endif
 
+#ifndef EXTCONFIG
 	err = conf_path_get(path, sizeof(path));
 	if (err) {
 		warning("conf: could not get config path: %m\n", err);
@@ -356,6 +361,7 @@ int conf_configure(void)
 		if (err)
 			goto out;
 	}
+#endif
 
 	conf_obj = mem_deref(conf_obj);
 	err = conf_alloc(&conf_obj, file);
