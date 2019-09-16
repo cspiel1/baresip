@@ -355,11 +355,13 @@ int net_alloc(struct network **netp, const struct config_net *cfg)
 	}
 
 	/* Initialise DNS resolver */
+#ifndef NODNS
 	err = dns_init(net);
 	if (err) {
 		warning("net: dns_init: %m\n", err);
 		goto out;
 	}
+#endif
 
 	sa_init(&net->laddr, AF_INET);
 
