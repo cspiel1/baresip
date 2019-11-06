@@ -169,6 +169,11 @@ $ sudo make CC=clang install
 Modules will be built if external dependencies are installed.
 After building you can start baresip like this:
 
+### Build static baresip library
+$ make clean
+$ make STATIC=1 libbaresip.a
+$ sudo cp libbaresip.a /usr/local/lib
+
 ```
 $ baresip
 ```
