@@ -18,6 +18,7 @@ set(MODULES
   avfilter
   avformat
   codec2
+  comvideo
   cons
   contact
   coreaudio
