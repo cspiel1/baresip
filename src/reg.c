@@ -431,3 +431,12 @@ const struct sa *reg_paddr(const struct reg *reg)
 {
 	return reg ? &reg->paddr : NULL;
 }
+
+
+uint32_t reg_proxy_expires(const struct reg *reg)
+{
+	if (!reg)
+		return 0;
+
+	return sipreg_proxy_expires(reg->sipreg);
+}
