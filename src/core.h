@@ -246,6 +246,7 @@ int  reg_af(const struct reg *reg);
 const struct sa *reg_laddr(const struct reg *reg);
 const struct sa *reg_paddr(const struct reg *reg);
 void reg_set_custom_hdrs(struct reg *reg, const struct list *hdrs);
+uint32_t reg_proxy_expires(const struct reg *reg);
 
 /*
  * RTP Stats
