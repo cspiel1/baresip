@@ -737,6 +737,30 @@ bool net_is_laddr(const struct network *net, struct sa *sa)
 }
 
 
+int net_set_dst_scopeid(const struct network *net, struct sa *dst)
+{
+	struct le *le;
+	if (!net || !dst)
+		return EINVAL;
+
+	if (sa_af(dst) != AF_INET6 || !sa_is_linklocal(dst))
+		return 0;
+
+	LIST_FOREACH(&net->laddrs, le) {
+		struct laddr *laddr = le->data;
+		struct sa *sa = &laddr->sa;
+		if (sa_af(sa) != AF_INET6 || !sa_is_linklocal(sa))
+			continue;
+
+		sa_set_scopeid(dst, sa_scopeid(&laddr->sa));
+		if (!net_dst_is_source_addr(dst, &laddr->sa))
+			return 0;
+	}
+
+	return ECONNREFUSED;
+}
+
+
 /**
  * Get the DNS Client
  *
