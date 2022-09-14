@@ -244,6 +244,7 @@ void call_start_answtmr(struct call *call, uint32_t ms);
 bool          call_supported(struct call *call, uint16_t tags);
 const char   *call_user_data(const struct call *call);
 int call_set_user_data(struct call *call, const char *user_data);
+bool call_hidden(struct call *call);
 
 /*
  * Custom headers

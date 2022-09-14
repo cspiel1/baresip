@@ -442,6 +442,7 @@ static int digit_handler(struct re_printf *pf, void *arg)
 	const struct cmd_arg *carg = arg;
 	(void) pf;
 
+	info("%s:%d HUUUUUU %c\n", __func__, __LINE__, carg->key);
 	return call_send_digit(menu_callcur(), carg->key);
 }
 

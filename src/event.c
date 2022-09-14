@@ -337,7 +337,11 @@ void ua_event(struct ua *ua, enum ua_event ev, struct call *call,
 		struct ua_eh *eh = le->data;
 		le = le->next;
 
+		if (call_hidden(call))
+			return;
+
 		eh->h(ua, ev, call, buf, eh->arg);
+
 	}
 }
 

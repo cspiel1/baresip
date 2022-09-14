@@ -81,6 +81,7 @@ struct call {
 	bool use_video;
 	bool use_rtp;
 	char *user_data;           /**< User data related to the call       */
+	bool hidden;               /**< Call hidden flag stop UA events     */
 };
 
 
@@ -1684,6 +1685,8 @@ int call_send_digit(struct call *call, char key)
 	if (!call)
 		return EINVAL;
 
+	re_printf("%s:%d HUUUUUU key=%u\n", __func__, __LINE__, key);
+
 	switch (account_dtmfmode(call->acc)) {
 		case DTMFMODE_SIP_INFO:
 			info = true;
@@ -3082,4 +3085,13 @@ int call_set_user_data(struct call *call, const char *user_data)
 		return err;
 
 	return 0;
+}
+
+
+bool call_hidden(struct call *call)
+{
+	if (!call)
+		return false;
+
+	return call->hidden;
 }
