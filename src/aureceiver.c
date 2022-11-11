@@ -127,6 +127,7 @@ static int aurecv_alloc_aubuf(struct audio_recv *ar, const struct auframe *af)
 {
 	size_t min_sz;
 	size_t max_sz;
+	size_t wish_sz;
 	size_t sz;
 	const struct config_audio *cfg = ar->cfg;
 	int err;
@@ -134,6 +135,9 @@ static int aurecv_alloc_aubuf(struct audio_recv *ar, const struct auframe *af)
 	sz = aufmt_sample_size(cfg->play_fmt);
 	min_sz = sz * au_calc_nsamp(af->srate, af->ch, cfg->buffer.min);
 	max_sz = sz * au_calc_nsamp(af->srate, af->ch, cfg->buffer.max);
+	uint32_t ptime_wish = cfg->buffer.min;
+	conf_get_u32(conf_cur(), "audio_rx_wish", &ptime_wish);
+	wish_sz = sz*au_calc_nsamp(af->srate, af->ch, ptime_wish);
 
 	debug("audio_recv: create audio buffer"
 	      " [%u - %u ms]"
@@ -160,6 +164,7 @@ static int aurecv_alloc_aubuf(struct audio_recv *ar, const struct auframe *af)
 
 	aubuf_set_mode(ar->aubuf, cfg->adaptive ?
 		       AUBUF_ADAPTIVE : AUBUF_FIXED);
+	aubuf_set_wish_sz(ar->aubuf, wish_sz);
 	aubuf_set_silence(ar->aubuf, cfg->silence);
 
 out:
