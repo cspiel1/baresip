@@ -1141,10 +1141,18 @@ int call_connect(struct call *call, const struct pl *paddr)
 
 	/* If we are using asyncronous medianat like STUN/TURN, then
 	 * wait until completed before sending the INVITE */
-	if (!call->acc->mnat)
+	if (!call->acc->mnat) {
 		err = send_invite(call);
-	else
+	}
+	else {
 		err = call_streams_alloc(call);
+		if (err)
+			return err;
+
+		call_set_mdir(call, call->estadir, call->estvdir);
+	}
+
+	/* TODO: media dir for parallel call?    */
 
 	return err;
 }
