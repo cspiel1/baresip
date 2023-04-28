@@ -59,6 +59,29 @@ static int cmd_find_call(struct re_printf *pf, void *arg)
 }
 
 
+static int cmd_remove_codec(struct re_printf *pf, void *arg)
+{
+	struct cmd_arg *carg = arg;
+	struct ua *ua = carg->data ? carg->data : menu_uacur();
+	struct sdp_media *m;
+	struct sdp_format *f;
+	(void)pf;
+
+	if (!str_isset(carg->prm))
+		return EINVAL;
+
+	m = stream_sdpmedia(audio_strm(call_audio(ua_call(ua))));
+	f = sdp_media_format(m, true, NULL, -1, carg->prm, -1, -1);
+	if (!f) {
+		warning("Could not find codec %s\n", carg->prm);
+		return 0;
+	}
+
+	mem_deref(f);
+	return call_modify(ua_call(ua));
+}
+
+
 /**
  * Put the active call on-hold
  *
@@ -465,6 +488,7 @@ static const struct cmd callcmdv[] = {
 {"video_debug", 'V',       0, "Video stream",         call_video_debug     },
 {"videodir",      0, CMD_PRM, "Set video direction",  set_video_dir        },
 {"medialdir",     0, CMD_PRM, "Set local media direction",  set_media_ldir },
+{"rmcodec",       0, CMD_PRM, "Remove an audio codec", cmd_remove_codec    },
 {"stopringing",   0,       0, "Stop ring tones",      stop_ringing         },
 
 /* Numeric keypad for DTMF events: */
