@@ -858,7 +858,7 @@ static int core_config_template(struct re_printf *pf, const struct config *cfg)
 
 static uint32_t count_modules(const char *path)
 {
-#ifdef WIN32
+#if defined(WIN32) || defined(__ZEPHYR__)
 	(void)path;
 	return 0;
 #else
