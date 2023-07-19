@@ -174,7 +174,7 @@ int conf_path_get(char *path, size_t sz)
 	str_ncpy(buf, CONFIG_PATH, sizeof(buf));
 	(void)err;
 #else
-	err = fs_gethome(buf, sizeof(buf));
+	err = re_fs_gethome(buf, sizeof(buf));
 	if (err)
 		return err;
 #endif
@@ -382,9 +382,9 @@ int conf_configure(void)
 	if (re_snprintf(file, sizeof(file), "%s/config", path) < 0)
 		return ENOMEM;
 
-	if (!fs_isfile(file)) {
+	if (!re_fs_isfile(file)) {
 
-		(void)fs_mkdir(path, 0700);
+		(void)re_fs_mkdir(path, 0700);
 
 		err = config_write_template(file, conf_config());
 		if (err)

@@ -866,7 +866,7 @@ static uint32_t count_modules(const char *path)
 	struct dirent *dp;
 	uint32_t n = 0;
 
-	dirp = opendir(path);
+	dirp = fs_opendir(path);
 	if (!dirp)
 		return 0;
 
@@ -962,7 +962,7 @@ int config_write_template(const char *file, const struct config *cfg)
 
 	info("config: creating config template %s\n", file);
 
-	err = fs_fopen(&f, file, "w");
+	err = re_fs_fopen(&f, file, "w");
 	if (err) {
 		warning("config: writing %s: %m\n", file, err);
 		return err;
