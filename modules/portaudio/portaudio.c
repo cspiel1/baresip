@@ -303,9 +303,9 @@ static int pa_init(void)
 		paerr = Pa_Initialize();
 	}
 	else {
-		fs_stdio_hide();
+		re_fs_stdio_hide();
 		paerr = Pa_Initialize();
-		fs_stdio_restore();
+		re_fs_stdio_restore();
 	}
 	if (paNoError != paerr) {
 		warning("portaudio: init: %s\n", Pa_GetErrorText(paerr));

@@ -866,7 +866,7 @@ static uint32_t count_modules(const char *path)
 	struct dirent *dp;
 	uint32_t n = 0;
 
-	dirp = fs_opendir(path);
+	dirp = re_fs_opendir(path);
 	if (!dirp)
 		return 0;
 

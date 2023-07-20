@@ -196,9 +196,9 @@ static int account_read_file(void)
 	if (re_snprintf(file, sizeof(file), "%s/accounts", path) < 0)
 		return ENOMEM;
 
-	if (!fs_isfile(file)) {
+	if (!re_fs_isfile(file)) {
 
-		(void)fs_mkdir(path, 0700);
+		(void)re_fs_mkdir(path, 0700);
 
 		err = account_write_template(file);
 		if (err)

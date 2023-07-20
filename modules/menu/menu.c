@@ -502,7 +502,7 @@ static bool alert_uri_supported(const char *uri)
 	if (!re_regex(uri, strlen(uri), "http://"))
 		return true;
 
-	if (!re_regex(uri, strlen(uri), "file://") && fs_isfile(uri + 7))
+	if (!re_regex(uri, strlen(uri), "file://") && re_fs_isfile(uri + 7))
 		return true;
 
 	return false;
