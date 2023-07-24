@@ -34,7 +34,7 @@ static int account_write_template(const char *file)
 
 	info("account: creating accounts template %s\n", file);
 
-	f = fopen(file, "w");
+	err = re_fs_fopen(&f, file, "w");
 	if (!f)
 		return errno;
 
