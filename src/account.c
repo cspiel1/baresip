@@ -170,10 +170,12 @@ static int cert_decode(struct account *acc, const struct pl *prm)
 	if (!str_isset(acc->cert))
 		return 0;
 
+#ifndef EXTCONFIG
 	if (!re_fs_isfile(acc->cert)) {
 		warning("account: certificate %s not found\n", acc->cert);
 		err = errno;
 	}
+#endif
 
 	return err;
 }
