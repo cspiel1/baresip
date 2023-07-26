@@ -171,6 +171,7 @@ bool net_af_enabled(const struct network *net, int af)
 }
 
 
+#ifndef NODNS
 static int dns_init(struct network *net)
 {
 	struct sa nsv[NET_MAX_NS];
@@ -183,6 +184,7 @@ static int dns_init(struct network *net)
 
 	return dnsc_alloc(&net->dnsc, NULL, nsv, nsn);
 }
+#endif
 
 
 /**
