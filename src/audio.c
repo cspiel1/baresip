@@ -649,6 +649,7 @@ static void auplay_write_handler(struct auframe *af, void *arg)
 static void ausrc_read_handler(struct auframe *af, void *arg)
 {
 	struct audio *a = arg;
+	struct stream *s = audio_strm(a);
 	struct autx *tx = &a->tx;
 	enum aufmt fmt;
 	unsigned i;
@@ -657,6 +658,7 @@ static void ausrc_read_handler(struct auframe *af, void *arg)
 	fmt = tx->src_fmt;
 	mtx_unlock(tx->mtx);
 
+	stream_set_t1(s);
 	if (fmt != af->fmt) {
 		warning("audio: ausrc format mismatch:"
 			" expected=%d(%s), actual=%d(%s)\n",
