@@ -31,6 +31,9 @@ struct sender {
 	int pt_enc;            /**< Payload type for encoding       */
 	RE_ATOMIC bool enabled;/**< True if enabled                 */
 	mtx_t *lock;
+
+	uint64_t t0, t1;
+	int64_t t_rel;
 };
 
 
@@ -47,6 +50,9 @@ struct receiver {
 	bool pseq_set;        /**< True if sequence number is set   */
 	bool rtp_estab;       /**< True if RTP stream established   */
 	bool enabled;         /**< True if enabled                  */
+
+	uint64_t t0, t1;
+	int64_t t_rel;
 };
 
 
@@ -94,9 +100,6 @@ struct stream {
 	struct sender tx;
 
 	struct receiver rx;
-
-	uint64_t t0, t1;
-	int64_t enc_rel;
 };
 
 
@@ -342,6 +345,7 @@ static int handle_rtp(struct stream *s, const struct rtp_header *hdr,
 	struct rtpext extv[8];
 	size_t extc = 0;
 	bool ignore = drop;
+	static int dbg = 40;
 
 	/* RFC 5285 -- A General Mechanism for RTP Header Extensions */
 	if (hdr->ext && hdr->x.len && mb) {
@@ -389,9 +393,31 @@ static int handle_rtp(struct stream *s, const struct rtp_header *hdr,
  handler:
 	tmr_cancel(&s->tmr_natph);
 	s->rtph(hdr, extv, extc, mb, lostc, &ignore, s->arg);
+
+	uint64_t cur_t;
+	cur_t = tmr_jiffies_usec();
+	if (s->rx.t0) {
+		int64_t rel;
+		uint64_t tot_dt;
+		uint64_t dec_dt;
+		tot_dt = s->rx.t1 - s->rx.t0;
+		dec_dt = cur_t - s->rx.t1;
+		rel = (int64_t) (dec_dt * 10000 / tot_dt);
+		s->rx.t_rel += (rel - s->rx.t_rel) / 10;
+		if (--dbg == 0) {
+			dbg = 40;
+			re_printf("decoding (%lld %%) of %llums\n",
+				  (long long int) s->rx.t_rel/100,
+				  (long long int) tot_dt/1000
+				  );
+		}
+	}
+
+	s->rx.t0 = s->rx.t1;
+	s->rx.t1 = cur_t;
+
 	if (ignore)
 		return EAGAIN;
-
 	return 0;
 }
 
@@ -420,6 +446,7 @@ static void rtp_handler(const struct sa *src, const struct rtp_header *hdr,
 	if (!(sdp_media_ldir(s->sdp) & SDP_RECVONLY))
 		return;
 
+	s->rx.t1 = tmr_jiffies_usec();
 	metric_add_packet(s->rx.metric, mbuf_get_left(mb));
 
 	if (!s->rx.rtp_estab) {
@@ -761,7 +788,8 @@ int stream_alloc(struct stream **sp, struct list *streaml,
 	if (err)
 		goto out;
 
-	s->t1 = tmr_jiffies_usec();
+	s->rx.t1 = tmr_jiffies_usec();
+	s->tx.t1 = tmr_jiffies_usec();
 	s->cfg = *cfg;
 	s->cfg.rtcp_mux = prm->rtcp_mux;
 
@@ -938,9 +966,9 @@ struct sdp_media *stream_sdpmedia(const struct stream *strm)
 }
 
 
-void stream_set_t1(struct stream *s)
+void stream_set_tx_t1(struct stream *s)
 {
-	s->t1 = tmr_jiffies_usec();
+	s->tx.t1 = tmr_jiffies_usec();
 }
 
 
@@ -978,25 +1006,27 @@ int stream_send(struct stream *s, bool ext, bool marker, int pt, uint32_t ts,
 
 	if (pt >= 0) {
 		uint64_t cur_t;
-		uint64_t enc_dt;
-		uint64_t tot_dt;
 		cur_t = tmr_jiffies_usec();
-		if (s->t0) {
-			int64_t enc_rel;
-			tot_dt = s->t1 - s->t0;
-			enc_dt = cur_t - s->t1;
-			enc_rel = (int64_t) (enc_dt * 10000 / tot_dt);
-			s->enc_rel += (enc_rel - s->enc_rel) / 10;
+		if (s->tx.t0) {
+			int64_t rel;
+			uint64_t tot_dt;
+			uint64_t enc_dt;
+			tot_dt = s->tx.t1 - s->tx.t0;
+			enc_dt = cur_t - s->tx.t1;
+			rel = (int64_t) (enc_dt * 10000 / tot_dt);
+			s->tx.t_rel += (rel - s->tx.t_rel) / 10;
 			if (--dbg == 0) {
 				dbg = 40;
-				re_printf("%s:%d encoding (%lld %%)\n",
-					  __func__, __LINE__,
-					  (long long int) s->enc_rel/100);
+				re_printf("encoding (%lld %%) of "
+					  "%llums\n",
+					  (long long int) s->tx.t_rel/100,
+					  (long long int) tot_dt/1000
+					 );
 			}
 		}
 
-		s->t0 = s->t1;
-		s->t1 = cur_t;
+		s->tx.t0 = s->tx.t1;
+		s->tx.t1 = cur_t;
 
 		mtx_lock(s->tx.lock);
 		err = rtp_send(s->rtp, &s->tx.raddr_rtp, ext, marker, pt, ts,

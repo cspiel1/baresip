@@ -288,7 +288,7 @@ void stream_hold(struct stream *s, bool hold);
 void stream_set_ldir(struct stream *s, enum sdp_dir dir);
 void stream_set_rtcp_interval(struct stream *s, uint32_t n);
 void stream_set_srate(struct stream *s, uint32_t srate_tx, uint32_t srate_rx);
-void stream_set_t1(struct stream *strm);
+void stream_set_tx_t1(struct stream *strm);
 bool stream_is_ready(const struct stream *strm);
 int  stream_print(struct re_printf *pf, const struct stream *s);
 enum media_type stream_type(const struct stream *strm);

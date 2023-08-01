@@ -658,7 +658,7 @@ static void ausrc_read_handler(struct auframe *af, void *arg)
 	fmt = tx->src_fmt;
 	mtx_unlock(tx->mtx);
 
-	stream_set_t1(s);
+	stream_set_tx_t1(s);
 	if (fmt != af->fmt) {
 		warning("audio: ausrc format mismatch:"
 			" expected=%d(%s), actual=%d(%s)\n",
