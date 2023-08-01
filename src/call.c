@@ -1417,6 +1417,11 @@ int call_answer(struct call *call, uint16_t scode, enum vidmode vmode)
 
 	mem_deref(desc);
 
+	struct le *le;
+	FOREACH_STREAM {
+		stream_enable(le->data, true);
+	}
+
 	return err;
 }
 
