@@ -606,6 +606,8 @@ int receiver_alloc(struct receiver **rxp,
 	rx->pt     = -1;
 	err  = str_dup(&rx->name, name);
 	err |= mutex_alloc(&rx->mtx);
+	if (err)
+		goto out;
 
 	/* Audio Jitter buffer */
 	if (stream_type(strm) == MEDIA_AUDIO &&
@@ -622,17 +624,19 @@ int receiver_alloc(struct receiver **rxp,
 
 		err = jbuf_alloc(&rx->jbuf, cfg->video.jbuf_del.min,
 				 cfg->video.jbuf_del.max);
-		err |= jbuf_set_type(rx->jbuf, cfg->video.jbtype);
+		if (err)
+			goto out;
+
+		err = jbuf_set_type(rx->jbuf, cfg->video.jbtype);
+		if (err)
+			goto out;
 	}
 
 	rx->metric = metric_alloc();
 	if (!rx->metric)
-		err |= ENOMEM;
+		err = ENOMEM;
 	else
-		err |= metric_init(rx->metric);
-
-	if (err)
-		goto out;
+		err = metric_init(rx->metric);
 
 out:
 	if (err)
