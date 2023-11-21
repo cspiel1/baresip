@@ -14,6 +14,8 @@
 #include <re_atomic.h>
 #include <rem.h>
 #include <baresip.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 #include "core.h"
 
 
@@ -875,6 +877,11 @@ static int tx_thread(void *arg)
 	struct audio *a = arg;
 	struct autx *tx = &a->tx;
 	uint64_t ts = 0;
+
+	int n = setpriority(PRIO_PROCESS, 0, -10);
+	if (n == -1)
+		warning("pulse: could not set nice value (%m)\n",
+			errno);
 
 	mtx_lock(tx->mtx);
 	while (re_atomic_rlx(&tx->thr.run)) {
