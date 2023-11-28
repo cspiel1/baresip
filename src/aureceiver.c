@@ -534,7 +534,11 @@ void aur_read(struct audio_recv *ar, struct auframe *af)
 	if (!ar || mtx_trylock(ar->aubuf_mtx) != thrd_success)
 		return;
 
-	aubuf_read_auframe(ar->aubuf, af);
+	if (ar->aubuf)
+		aubuf_read_auframe(ar->aubuf, af);
+	else
+		memset(af->sampv, 0, auframe_size(af));
+
 	mtx_unlock(ar->aubuf_mtx);
 }
 
