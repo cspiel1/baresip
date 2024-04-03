@@ -105,6 +105,12 @@ jobs:
         repo: https://github.com/baresip/re
         secret: ${{ secrets.GITHUB_TOKEN }}
 
+    - uses: sreimers/pr-dependency-action@v0.6
+      with:
+        name: baresip-apps
+        repo: https://github.com/baresip/baresip-apps
+        secret: ${{ secrets.GITHUB_TOKEN }}
+
     - name: make re
       run: |
         cmake -S re -B re/build
@@ -124,6 +130,13 @@ jobs:
       if: ${{ runner.os == 'macOS' }}
       run: |
         cmake -B build -DCMAKE_C_FLAGS="-Werror" && cmake --build build -j
+
+    - name: make baresip-apps
+      run: |
+        cmake -S $p -B $p/build
+        cmake --build $p/build -j
+        mv $p ../.
+      env: p: baresip-apps
 
     - name: baresip static
       if: ${{ matrix.os == 'ubuntu-22.04' }}
