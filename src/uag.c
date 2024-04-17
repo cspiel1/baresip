@@ -12,23 +12,22 @@
 /* One instance */
 
 static struct uag uag = {
-	NULL,
-	LIST_INIT,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	false,
-	0,
-	NULL,
-	NULL,
-	false,
-	false,
-	NULL,
-	NULL,
+	NULL,         /**< cfg               */
+	LIST_INIT,    /**< ual               */
+	NULL,         /**< sip               */
+	NULL,         /**< lsnr              */
+	NULL,         /**< sock              */
+	NULL,         /**< evsock            */
+	0,            /**< transports        */
+	false,        /**< delayed_close     */
+	NULL,         /**< subh              */
+	NULL,         /**< exith             */
+	false,        /**< nodial            */
+	NULL,         /**< arg               */
+	NULL,         /**< eprm              */
 #ifdef USE_TLS
-	NULL,
-	NULL
+	NULL,         /**< tls               */
+	NULL          /**< wss_tls           */
 #endif
 };
 
@@ -1235,28 +1234,6 @@ int uag_set_extra_params(const char *eprm)
 const char *uag_eprm(void)
 {
 	return uag.eprm;
-}
-
-
-/**
- * Set global Do not Disturb flag
- *
- * @param dnd DnD flag
- */
-void uag_set_dnd(bool dnd)
-{
-	uag.dnd = dnd;
-}
-
-
-/**
- * Get DnD status of uag
- *
- * @return True if DnD is active, False if not
- */
-bool uag_dnd(void)
-{
-	return uag.dnd;
 }
 
 

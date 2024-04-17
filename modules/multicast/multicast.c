@@ -22,12 +22,19 @@ struct mccfg {
 	uint32_t tfade;
 };
 
-static struct mccfg mccfg = {
-	0,
-	1,
-	125,
+struct mc {
+	bool dnd;
+	struct mccfg cfg;
 };
 
+static struct mc mc = {
+	false,
+	{
+		0,
+		1,
+		125,
+	}
+};
 
 /**
  * Decode IP-address <IP>:<PORT>
@@ -110,7 +117,18 @@ static int check_rtp_pt(struct aucodec *ac)
  */
 uint8_t multicast_callprio(void)
 {
-	return mccfg.callprio;
+	return mc.cfg.callprio;
+}
+
+
+/**
+ * Set the do not disturb flag
+ *
+ * @param v true if incoming calls should be rejected
+ */
+void multicast_set_dnd(bool v)
+{
+	mc.dnd = v;
 }
 
 
@@ -121,7 +139,7 @@ uint8_t multicast_callprio(void)
  */
 uint8_t multicast_ttl(void)
 {
-	return mccfg.ttl;
+	return mc.cfg.ttl;
 }
 
 
@@ -132,7 +150,7 @@ uint8_t multicast_ttl(void)
  */
 uint32_t multicast_fade_time(void)
 {
-	return mccfg.tfade;
+	return mc.cfg.tfade;
 }
 
 
@@ -633,17 +651,18 @@ static int module_read_config(void)
 	int err = 0, prio = 1;
 	struct sa laddr;
 
-	(void)conf_get_u32(conf_cur(), "multicast_call_prio", &mccfg.callprio);
-	if (mccfg.callprio > 255)
-		mccfg.callprio = 255;
+	(void)conf_get_u32(conf_cur(), "multicast_call_prio",
+			   &mc.cfg.callprio);
+	if (mc.cfg.callprio > 255)
+		mc.cfg.callprio = 255;
 
-	(void)conf_get_u32(conf_cur(), "multicast_ttl", &mccfg.ttl);
-	if (mccfg.ttl > 255)
-		mccfg.ttl = 255;
+	(void)conf_get_u32(conf_cur(), "multicast_ttl", &mc.cfg.ttl);
+	if (mc.cfg.ttl > 255)
+		mc.cfg.ttl = 255;
 
-	(void)conf_get_u32(conf_cur(), "multicast_fade_time", &mccfg.tfade);
-	if (mccfg.tfade > 2000)
-		mccfg.tfade = 2000;
+	(void)conf_get_u32(conf_cur(), "multicast_fade_time", &mc.cfg.tfade);
+	if (mc.cfg.tfade > 2000)
+		mc.cfg.tfade = 2000;
 
 	sa_init(&laddr, AF_INET);
 	err = conf_apply(conf_cur(), "multicast_listener",
@@ -677,12 +696,36 @@ static const struct cmd cmdv[] = {
 };
 
 
+static void ua_event_handler(struct ua *ua, enum ua_event ev,
+			     struct call *call, const char *prm, void *arg)
+{
+	(void)ua;
+	(void)prm;
+	(void)arg;
+
+	switch (ev) {
+
+	case UA_EVENT_CALL_ARRIVED:
+		if (mc.dnd)
+			call_reject(call, 480, "Temporarily Unavailable");
+
+		break;
+
+	default:
+		break;
+	}
+}
+
+
 static int module_init(void)
 {
 	int err = 0;
 
 	err = module_read_config();
 	err |= cmd_register(baresip_commands(), cmdv, RE_ARRAY_SIZE(cmdv));
+	err |= uag_event_register(ua_event_handler, NULL);
+	if (err)
+		return err;
 
 	err |= mcsource_init();
 	err |= mcplayer_init();
@@ -699,6 +742,7 @@ static int module_close(void)
 	mcsender_stopall();
 	mcreceiver_unregall();
 
+	uag_event_unregister(ua_event_handler);
 	cmd_unregister(baresip_commands(), cmdv);
 
 	mcsource_terminate();
