@@ -1,0 +1,337 @@
+# Azure Pipeline file for building and testing baresip
+
+# Parameters:
+# openssl_version: Available OpenSSL Versions
+# min_coverate:    Minimal Code Coverage
+---
+parameters:
+  - name: 'openssl_version'
+    type: object
+    default:
+      - 3.0.13
+      - 3.2.1
+  - name: 'min_coverage'
+    type: number
+    default: 50
+
+# Define Variables
+variables:
+  - name: CMAKE_GENERATOR
+    value: Ninja
+  - name: APT_DEPS_COMMON
+    value: "ninja-build libsystemd-dev libglib2.0-dev libssl-dev"
+  - name: OPENSSL_ROOT_DIR
+    value: $(System.DefaultWorkingDirectory)/openssl
+
+# Trigger the pipeline for branch commend & sprint
+trigger:
+  branches:
+    include:
+      - commend
+      - sprint
+
+# Resources
+resources:
+  repositories:
+    - repository: libre
+      type: git
+      name: core-components/re
+      ref: sprint
+
+
+# Define Jbs for each OpenSSL version
+jobs:
+- ${{ each version in parameters.openssl_version }}:
+  # Create new job
+  - job:
+    displayName: 'Build with OpenSSL ${{ version }}'
+    pool:
+      vmImage: 'ubuntu-latest'
+
+    steps:
+    # Checkout Baresip source into $(System.DefaultWorkingDirectory)
+    - checkout: 'self'
+      displayName    : 'Checkout BareSIP Source'
+      clean          : 'true'
+      fetchTags      : 'false'
+      continueOnError: 'false'
+
+    # Checkout RE source into $(System.DefaultWorkingDirectory)
+    - checkout: 'libre'
+      displayName    : 'Checkout Re Source'
+      clean          : 'true'
+      fetchTags      : 'false'
+      continueOnError: 'false'
+
+    # Install/Prepare Build Environment for tests
+    - task: Bash@3
+      displayName: 'Prepare Build Environment'
+      inputs:
+        targetType: 'inline'
+        script: |
+          sudo apt update && \
+          sudo apt install --fix-missing $(APT_DEPS_COMMON)
+
+    # Download OpenSSL package from Azure Artifects Universal Package
+    - task: UniversalPackages@0
+      displayName: 'Download Prebuilt OpenSSL ${{version}}'
+      inputs:
+        command: 'download'
+        feedsToUse: 'internal'
+        vstsFeed: 'core-components/commend-core-libs'
+        vstsFeedPackage: 'openssl'
+        vstsPackageVersion: '${{version}}'
+        downloadDirectory: '$(System.DefaultWorkingDirectory)/openssl'
+
+    # Generate CMake Build Environment for RE
+    - task: CMake@1
+      displayName: 'Generate CMake Build Environment RE'
+      inputs:
+        cmakeArgs: >-
+          -B build
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_INSTALL_PREFIX=$(System.DefaultWorkingDirectory)/re/install
+          -DOPENSSL_ROOT_DIR=$(System.DefaultWorkingDirectory)/openssl
+        workingDirectory: '$(System.DefaultWorkingDirectory)/re'
+
+    # Build RE project
+    - task: CMake@1
+      displayName: 'Build RE'
+      inputs:
+        cmakeArgs: '--build build -j'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/re'
+
+    # Install RE project
+    - task: CMake@1
+      displayName: 'Install RE'
+      inputs:
+        cmakeArgs: '--install build'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/re'
+
+    # Generate Cmake Build Environment for BareSIP
+    - task: CMake@1
+      displayName: 'Generate CMake Build Environment BareSip'
+      inputs:
+        cmakeArgs: >-
+          -B build
+          -DCMAKE_BUILD_TYPE=DEBUG
+          -DCMAKE_PREFIX_PATH=$(System.DefaultWorkingDirectory)/re/install
+          -DOPENSSL_ROOT_DIR=$(System.DefaultWorkingDirectory)/openssl
+          -DCTESTING_ENABLED=1
+          -DDATA_PATH=$(System.DefaultWorkingDirectory)/baresip/test/data
+        workingDirectory: $(System.DefaultWorkingDirectory)/baresip
+
+    # Build BareSIP project
+    - task: CMake@1
+      displayName: 'Build BareSip'
+      inputs:
+        cmakeArgs: '--build build -j'
+        workingDirectory: $(System.DefaultWorkingDirectory)/baresip
+
+    # Run Tests
+    - task: Bash@3
+      displayName: 'Run Tests'
+      continueOnError: true
+      inputs:
+        targetType: 'inline'
+        script: ctest --test-dir $(System.DefaultWorkingDirectory)/baresip/build/test --output-on-failure --output-junit ctest_${{ version }}.xml
+
+    # Publish Tests Results
+    - task: PublishTestResults@2
+      displayName: 'Publish Test Results'
+      inputs:
+        failTaskOnFailedTests: true
+        testResultsFormat: 'JUnit'
+        testResultsFiles: '$(System.DefaultWorkingDirectory)/baresip/build/test/ctest_${{ version }}.xml'
+        testRunTitle: "BareSIP with OpenSSL ${{ version }}"
+
+- job:
+  displayName: 'Build for Code Coverage'
+  pool:
+    vmImage: 'ubuntu-latest'
+
+  steps:
+  # Checkout Baresip source into $(System.DefaultWorkingDirectory)
+  - checkout: 'self'
+    displayName    : 'Checkout BareSIP Source'
+    clean          : 'true'
+    fetchTags      : 'false'
+    continueOnError: 'false'
+
+  # Checkout RE source into $(System.DefaultWorkingDirectory)
+  - checkout: 'libre'
+    displayName    : 'Checkout Re Source'
+    clean          : 'true'
+    fetchTags      : 'false'
+    continueOnError: 'false'
+
+  # Install/Prepare Build Environment for tests
+  - task: Bash@3
+    displayName: 'Prepare Build Environment'
+    inputs:
+      targetType: 'inline'
+      script: |
+        sudo apt update && \
+        sudo apt install --fix-missing valgrind gcovr $(APT_DEPS_COMMON)
+
+  # Download OpenSSL package from Azure Artifects Universal Package
+  - task: UniversalPackages@0
+    displayName: 'Download Prebuilt OpenSSL 3.2.1'
+    inputs:
+      command: 'download'
+      feedsToUse: 'internal'
+      vstsFeed: 'core-components/commend-core-libs'
+      vstsFeedPackage: 'openssl'
+      vstsPackageVersion: '3.2.1'
+      downloadDirectory: '$(System.DefaultWorkingDirectory)/openssl'
+
+  # Generate CMake Build Environment for RE
+  - task: CMake@1
+    displayName: 'Generate CMake Build Environment RE'
+    inputs:
+      cmakeArgs: >-
+        -B build
+        -DCMAKE_BUILD_TYPE=Debug
+        -DCMAKE_INSTALL_PREFIX=$(System.DefaultWorkingDirectory)/re/install
+        -DOPENSSL_ROOT_DIR=$(System.DefaultWorkingDirectory)/openssl
+      workingDirectory: '$(System.DefaultWorkingDirectory)/re'
+
+  # Build RE project
+  - task: CMake@1
+    displayName: 'Build RE'
+    inputs:
+      cmakeArgs: '--build build -j'
+      workingDirectory: '$(System.DefaultWorkingDirectory)/re'
+
+  # Install RE project
+  - task: CMake@1
+    displayName: 'Install RE'
+    inputs:
+      cmakeArgs: '--install build'
+      workingDirectory: '$(System.DefaultWorkingDirectory)/re'
+
+  # Generate Cmake Build Environment
+  - task: CMake@1
+    displayName: 'Generate CMake Build Environment'
+    inputs:
+      cmakeArgs: >-
+        -B build
+        -DCMAKE_BUILD_TYPE=Debug
+        -DCMAKE_PREFIX_PATH=$(System.DefaultWorkingDirectory)/re/install
+        -DOPENSSL_ROOT_DIR=$(System.DefaultWorkingDirectory)/openssl
+        -DSTATIC=1
+        -DCMAKE_C_FLAGS="--coverage"
+        -DCMAKE_EXE_LINKER_FLAGS="--coverage"
+      workingDirectory: '$(System.DefaultWorkingDirectory)/baresip'
+
+  # Build BareSIP project
+  - task: CMake@1
+    displayName: 'Build BareSip'
+    inputs:
+      cmakeArgs: '--build build -j'
+      workingDirectory: $(System.DefaultWorkingDirectory)/baresip
+
+  # Run Coverage Calculation
+  - task: Bash@3
+    displayName: 'Calculate Coverage'
+    continueOnError: true
+    inputs:
+      targetType: 'inline'
+      script: |
+        $(System.DefaultWorkingDirectory)/baresip/build/test/selftest
+        gcov baresip/build/**/*.o
+        gcovr -r . -s --xml-pretty --xml $(System.DefaultWorkingDirectory)/baresip/code_coverage_report.xml --gcov-ignore-parse-errors
+
+  # Publish code coverage results (XML)
+  - task: PublishCodeCoverageResults@2
+    inputs:
+      summaryFileLocation: $(System.DefaultWorkingDirectory)/baresip/code_coverage_report.xml
+      failIfCoverageEmpty: 'true'
+
+- job:
+  displayName: 'Static Code Analysis'
+  pool:
+    vmImage: 'ubuntu-latest'
+
+  steps:
+  # Checkout Baresip source into $(System.DefaultWorkingDirectory)
+  - checkout: 'self'
+    displayName    : 'Checkout BareSIP Source'
+    clean          : 'true'
+    fetchTags      : 'false'
+    continueOnError: 'false'
+
+  # Checkout RE source into $(System.DefaultWorkingDirectory)
+  - checkout: 'libre'
+    displayName    : 'Checkout Re Source'
+    clean          : 'true'
+    fetchTags      : 'false'
+    continueOnError: 'false'
+
+  # Install dependencies from apt
+  - task: Bash@3
+    displayName: 'Install dependencies from apt'
+    inputs:
+      targetType: 'inline'
+      script: >-
+        sudo apt update &&
+        sudo apt install --fix-missing $(APT_DEPS_COMMON) &&
+        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add - &&
+        sudo add-apt-repository "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" &&
+        sudo apt-get update && sudo apt-get install -y clang-tools-18
+
+  # Download OpenSSL package from Azure Artifects Universal Package
+  - task: UniversalPackages@0
+    displayName: 'Download Prebuilt OpenSSL 3.2.1'
+    inputs:
+      command: 'download'
+      feedsToUse: 'internal'
+      vstsFeed: 'core-components/commend-core-libs'
+      vstsFeedPackage: 'openssl'
+      vstsPackageVersion: '3.2.1'
+      downloadDirectory: '$(System.DefaultWorkingDirectory)/openssl'
+
+  # Generate CMake Build Environment for RE
+  - task: CMake@1
+    displayName: 'Generate CMake Build Environment RE'
+    inputs:
+      cmakeArgs: >-
+        -B build
+        -DCMAKE_INSTALL_PREFIX=$(System.DefaultWorkingDirectory)/re/install
+        -DOPENSSL_ROOT_DIR=$(System.DefaultWorkingDirectory)/openssl
+      workingDirectory: '$(System.DefaultWorkingDirectory)/re'
+
+  # Build RE project
+  - task: CMake@1
+    displayName: 'Build RE'
+    inputs:
+      cmakeArgs: '--build build -j'
+      workingDirectory: '$(System.DefaultWorkingDirectory)/re'
+
+  # Install RE project
+  - task: CMake@1
+    displayName: 'Install RE'
+    inputs:
+      cmakeArgs: '--install build'
+      workingDirectory: '$(System.DefaultWorkingDirectory)/re'
+
+  # Generate Cmake Build Environment
+  - task: CMake@1
+    displayName: 'Generate CMake Build Environment'
+    inputs:
+      cmakeArgs: >-
+        -B build
+        -DCMAKE_C_COMPILER=clang-18
+        -DCMAKE_PREFIX_PATH=$(System.DefaultWorkingDirectory)/re/install
+        -DOPENSSL_ROOT_DIR=$(System.DefaultWorkingDirectory)/openssl
+      workingDirectory: '$(System.DefaultWorkingDirectory)/baresip'
+
+  # Run Static Code Analysis (clang)
+  - task: Bash@3
+    displayName: 'Run clang static code analyzer'
+    inputs:
+      targetType: 'inline'
+      script: >-
+        ${{ lower(variables.CMAKE_GENERATOR) }} -C build ctrl_dbus &&
+        analyze-build-18 --cdb build/compile_commands.json --status-bugs -v --exclude build/modules/ctrl_dbus
+      workingDirectory: $(System.DefaultWorkingDirectory)/baresip

@@ -47,3 +47,12 @@ add_executable(${PROJECT_NAME}
 )
 
 target_link_libraries(${PROJECT_NAME} baresip ${REM_LIBRARIES} ${RE_LIBRARIES})
+
+##############################################################################
+#
+# Include CTest testing
+#
+if(CTESTING_ENABLED)
+  message("-- CTest testing enabled")
+  include(${CMAKE_SOURCE_DIR}/cmake/ctest.cmake)
+endif()
