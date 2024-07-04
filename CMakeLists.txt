@@ -144,6 +144,10 @@ if(STATIC)
   add_definitions(-DSTATIC)
 endif()
 
+if(DATA_PATH)
+  add_definitions(-DDATA_PATH="${DATA_PATH}")
+endif()
+
 ##############################################################################
 #
 # Source section
