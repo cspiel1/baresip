@@ -441,6 +441,45 @@ struct contact *contact_find(const struct contacts *contacts, const char *uri)
 
 
 /**
+ * Match only the host part of given SIP uri in all registered contacts
+ *
+ * @param contacts Contacts container
+ * @param uristr   SIP uri to match the host part
+ *
+ * @return Matching contact if found, otherwise NULL
+ */
+struct contact *contact_find_host(const struct contacts *contacts,
+				  const char *uristr)
+{
+	if (!contacts)
+		return NULL;
+
+	struct contact *con;
+	con = contact_find(contacts, uristr);
+	if (!con) {
+		struct uri uri;
+		struct pl pl;
+		char *addr;
+		int err;
+
+		pl_set_str(&pl, uristr);
+		err = uri_decode(&uri, &pl);
+		if (err)
+			return NULL;
+
+		err = re_sdprintf(&addr, "sip:%r", &uri.host);
+		if (err)
+			return NULL;
+
+		con = contact_find(contacts, addr);
+		mem_deref(addr);
+	}
+
+	return con;
+}
+
+
+/**
  * Check the access parameter of a SIP uri
  *
  * - Matching uri has first presedence

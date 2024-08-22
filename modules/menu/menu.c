@@ -671,7 +671,7 @@ static void apply_contact_mediadir(struct call *call)
 		return;
 
 	const struct contacts *contacts = baresip_contacts();
-	struct contact *con = contact_find(contacts, peeruri);
+	struct contact *con = contact_find_host(contacts, peeruri);
 	if (!con)
 		return;
 
