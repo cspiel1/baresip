@@ -507,6 +507,8 @@ void contact_set_presence(struct contact *c, enum presence_status status);
 bool contact_block_access(const struct contacts *contacts, const char *uri);
 struct contact  *contact_find(const struct contacts *contacts,
 			      const char *uri);
+struct contact  *contact_find_host(const struct contacts *contacts,
+				   const char *uristr);
 struct sip_addr *contact_addr(const struct contact *c);
 struct list     *contact_list(const struct contacts *contacts);
 const char      *contact_str(const struct contact *c);
