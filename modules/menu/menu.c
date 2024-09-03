@@ -378,6 +378,7 @@ static void play_ringback(const struct call *call)
 	}
 	else if (menu.ringbackf) {
 		menu_play(call, NULL, menu.ringbackf, -1, DEVICE_PLAYER);
+		menu.ringback = true;
 	}
 	else {
 		menu_play(call, "ringback_aufile", "ringback.wav", -1,
