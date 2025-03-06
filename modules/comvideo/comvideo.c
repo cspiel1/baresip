@@ -186,19 +186,6 @@ static int src_alloc(struct vidsrc_st **stp, const struct vidsrc *vs,
 
 
 static void
-disp_identifier_set(struct vidisp_st *st, const char *identifier)
-{
-	if (!st->client_stream)
-		return;
-
-	g_object_set(
-		st->client_stream,
-		"id", identifier,
-		NULL);
-
-}
-
-static void
 disp_enable(struct vidisp_st *st, bool disp_enabled)
 {
 	if (!st->client_stream)
@@ -216,16 +203,16 @@ static void disp_destructor(void *arg)
 {
 	struct vidisp_st *st = arg;
 
-	disp_enable(st, FALSE);
+	debug("comvideo: stop display\n");
 
+	if (st->converter)
+		gst_object_unref(st->converter);
+
+	disp_enable(st, FALSE);
 	if (st->client_stream) {
 		gst_video_client_stream_stop(st->client_stream);
 		g_object_unref(st->client_stream);
 		st->client_stream = NULL;
-	}
-
-	if (st->converter) {
-		gst_object_unref(st->converter);
 	}
 
 	mem_deref(st->peer);
@@ -277,7 +264,7 @@ disp_map_call_id(struct call *call, void *arg)
 static int
 disp_find_identifier(struct vidisp_st *st, const char *peer)
 {
-	int err = 0;
+	int err;
 
 	if (st->identifier)
 		return 0;
@@ -289,22 +276,34 @@ disp_find_identifier(struct vidisp_st *st, const char *peer)
 	}
 
 	uag_filter_calls(disp_map_call_id, NULL, st);
-	return err;
+	return 0;
 }
 
 
-static void
+static int
 disp_create_client_stream(struct vidisp_st *st)
 {
 	st->client_stream = gst_video_client_create_stream(
 		comvideo_codec.video_client,
 		10,
-		"sip");
+		st->identifier, "video/x-h264");
+
+	if (!st->client_stream) {
+		warning("comvideo: failed to create client stream\n");
+		return ENODEV;
+	}
 
 	disp_enable(st,TRUE);
-	disp_identifier_set(st, st->identifier);
 
 	st->converter = gst_appsrc_h264_converter_new(st->client_stream);
+	if (!st->converter) {
+		warning("comvideo: failed to create h264 converter\n");
+		g_object_unref(st->client_stream);
+		st->client_stream = NULL;
+		return ENODEV;
+	}
+
+	return 0;
 }
 
 
@@ -312,20 +311,29 @@ static int
 disp_frame(struct vidisp_st *st, const char *peer,
 		     const struct vidframe *frame, uint64_t timestamp)
 {
+	int err = 0;
+
 	if (!st) {
 		warning("comvideo: vidisp_st is NULL\n");
 		return EINVAL;
 	}
 
-	if (!st->identifier) {
-		disp_find_identifier(st, peer);
-	}
+	if (!st->identifier)
+		err = disp_find_identifier(st, peer);
 
-	if (!st->client_stream) {
-		disp_create_client_stream(st);
-	}
+	if (err)
+		return err;
 
-	if (frame->data[0] != NULL && frame->linesize[0] > 0) {
+	if (!st->client_stream)
+		err = disp_create_client_stream(st);
+
+	if (err)
+		return err;
+
+	if (!st->client_stream || !st->converter)
+		return ENODEV;
+
+	if (frame->data[0]) {
 
 		uint16_t low = frame->linesize[0];
 		uint32_t high = ((uint32_t) frame->linesize[1]) << 16;
@@ -336,6 +344,9 @@ disp_frame(struct vidisp_st *st, const char *peer,
 			st->converter, frame->data[0],
 			buf_size, frame->size.w,
 			frame->size.h, timestamp);
+	}
+	else {
+		warning("comvideo: frame data is NULL\n");
 	}
 
 	return 0;
