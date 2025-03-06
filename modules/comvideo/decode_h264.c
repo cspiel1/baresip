@@ -113,6 +113,11 @@ int decode_h264(struct viddec_state *st, struct vidframe *frame,
 	if (err)
 		return err;
 
+	if (h264_hdr.type == H264_NALU_SLICE && !st->got_keyframe) {
+		debug("comvideo: decoder waiting for keyframe\n");
+		return EPROTO;
+	}
+
 	if (h264_hdr.f) {
 		info("comvideo: H264 forbidden bit set!\n");
 		return EBADMSG;
@@ -205,27 +210,9 @@ int decode_h264(struct viddec_state *st, struct vidframe *frame,
 	}
 	else if (H264_NALU_STAP_A == h264_hdr.type) {
 
-		while (mbuf_get_left(mb) >= 2) {
-
-			const uint16_t len = ntohs(mbuf_read_u16(mb));
-			struct h264_nal_header lhdr;
-
-			if (mbuf_get_left(mb) < len)
-				return EBADMSG;
-
-			err = h264_nal_header_decode(&lhdr, mb);
-			if (err)
-				return err;
-
-			--mb->pos;
-
-			err = mbuf_write_mem(st->mb, nal_seq, 3);
-			err |= mbuf_write_mem(st->mb, mbuf_buf(mb), len);
-			if (err)
-				goto out;
-
-			mb->pos += len;
-		}
+		err = h264_stap_decode_annexb(st->mb, mb);
+		if (err)
+			goto out;
 	}
 	else {
 		warning("comvideo: unknown NAL type %u\n", h264_hdr.type);
@@ -247,6 +234,7 @@ int decode_h264(struct viddec_state *st, struct vidframe *frame,
 	}
 
 	if (st->frag) {
+		warning("comvideo: incomplete fragment\n");
 		err = EPROTO;
 		goto out;
 	}
