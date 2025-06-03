@@ -1,0 +1,9 @@
+#ifndef __CONFIG_H__
+#define __CONFIG_H__
+
+#ifndef GLIB_VERSION_2_84
+#define GLIB_VERSION_2_84       (G_ENCODE_VERSION (2, 84))
+#endif
+
+#endif
+
