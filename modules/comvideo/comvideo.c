@@ -199,21 +199,31 @@ disp_enable(struct vidisp_st *st, bool disp_enabled)
 }
 
 
+static void stop_stream(struct vidisp_st *st)
+{
+
+	if (st->converter) {
+		gst_object_unref(st->converter);
+		st->converter = NULL;
+	}
+
+	disp_enable(st, FALSE);
+
+	if (st->client_stream) {
+		gst_video_client_stream_stop(st->client_stream);
+		g_object_unref(st->client_stream);
+		st->client_stream = NULL;
+	}
+}
+
+
 static void disp_destructor(void *arg)
 {
 	struct vidisp_st *st = arg;
 
 	debug("comvideo: stop display\n");
 
-	if (st->converter)
-		gst_object_unref(st->converter);
-
-	disp_enable(st, FALSE);
-	if (st->client_stream) {
-		gst_video_client_stream_stop(st->client_stream);
-		g_object_unref(st->client_stream);
-		st->client_stream = NULL;
-	}
+	stop_stream(st);
 
 	mem_deref(st->peer);
 	mem_deref(st->identifier);
@@ -283,10 +293,11 @@ disp_find_identifier(struct vidisp_st *st, const char *peer)
 static int
 disp_create_client_stream(struct vidisp_st *st)
 {
-	st->client_stream = gst_video_client_create_stream(
-		comvideo_codec.video_client,
-		10,
-		st->identifier, "video/x-h264");
+	if (!st->client_stream)
+		st->client_stream = gst_video_client_create_stream(
+									comvideo_codec.video_client,
+									10,
+									st->identifier, "video/x-h264");
 
 	if (!st->client_stream) {
 		warning("comvideo: failed to create client stream\n");
@@ -324,7 +335,7 @@ disp_frame(struct vidisp_st *st, const char *peer,
 	if (err)
 		return err;
 
-	if (!st->client_stream)
+	if (!st->client_stream || !st->converter)
 		err = disp_create_client_stream(st);
 
 	if (err)
@@ -332,6 +343,12 @@ disp_frame(struct vidisp_st *st, const char *peer,
 
 	if (!st->client_stream || !st->converter)
 		return ENODEV;
+
+	if (gst_appsrc_h264_converter_got_error(st->converter)) {
+		warning("comvideo: h264 converter got error -> retry\n");
+		stop_stream(st);
+		return 0;
+	}
 
 	if (frame->data[0]) {
 
