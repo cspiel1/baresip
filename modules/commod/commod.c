@@ -34,6 +34,7 @@ struct commod {
 	struct hash *answmod;
 	struct tmr tmr;
 	uint64_t winterval;
+	struct tmr tmr_earlym;
 };
 
 
@@ -396,6 +397,12 @@ static void sel_oldest_call(struct call *call, void *arg)
 
 static void call_earlymedia_disable(struct call *call)
 {
+	enum sdp_dir adir = SDP_INACTIVE;
+	enum sdp_dir vdir = SDP_INACTIVE;
+	call_get_mdir(call, &adir, &vdir);
+	if (adir == SDP_INACTIVE && vdir == SDP_INACTIVE)
+		return;
+
 	if (call_refresh_allowed(call)) {
 		call_set_audio_ldir(call, SDP_INACTIVE);
 		call_set_video_ldir(call, SDP_INACTIVE);
@@ -446,6 +453,13 @@ static void call_earlymedia_enable(struct call *call)
 	else {
 		call_progress_dir(call, adir, vdir);
 	}
+}
+
+
+static void enable_earlymedia(void *arg)
+{
+	struct call *call = arg;
+	call_earlymedia_enable(call);
 }
 
 
@@ -501,9 +515,13 @@ static void event_handler(enum bevent_ev ev, struct bevent *event, void *arg)
 				if (d.cur_call && call_state(d.cur_call)
 				    == CALL_STATE_INCOMING)
 					call_earlymedia_enable(d.cur_call);
-				else
-					acc_restore_answmods();
 			}
+
+			if (!d.cur_call)
+				acc_restore_answmods();
+
+			if (d.tmr_earlym.arg == call)
+				tmr_cancel(&d.tmr_earlym);
 			break;
 		default:
 			break;
@@ -605,7 +623,7 @@ static int com_switch_earlymedia(struct re_printf *pf, void *arg)
 	if (call_state(d.cur_call) == CALL_STATE_INCOMING)
 		call_earlymedia_disable(d.cur_call);
 
-	call_earlymedia_enable(call);
+	tmr_start(&d.tmr_earlym, 250, enable_earlymedia, call);
 
 	d.cur_call = call;
 	return 0;
@@ -653,6 +671,7 @@ static int module_init(void)
 	err |= cmd_register(baresip_commands(), cmdv, RE_ARRAY_SIZE(cmdv));
 	err |= hash_alloc(&d.answmod, 32);
 	tmr_init(&d.tmr);
+	tmr_init(&d.tmr_earlym);
 
 	uint64_t delay;
 	if (sd_watchdog_enabled(0, &delay)) {
@@ -685,6 +704,7 @@ static int module_close(void)
 	mem_deref(d.answmod);
 	d.cur_play = mem_deref(d.cur_play);
 	tmr_cancel(&d.tmr);
+	tmr_cancel(&d.tmr_earlym);
 
 	return 0;
 }
