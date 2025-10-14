@@ -295,9 +295,9 @@ disp_create_client_stream(struct vidisp_st *st)
 {
 	if (!st->client_stream)
 		st->client_stream = gst_video_client_create_stream(
-									comvideo_codec.video_client,
-									10,
-									st->identifier, "video/x-h264");
+					comvideo_codec.video_client,
+					10,
+					st->identifier, "video/x-h264");
 
 	if (!st->client_stream) {
 		warning("comvideo: failed to create client stream\n");
