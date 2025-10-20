@@ -48,7 +48,7 @@ int packetize_h264(struct videnc_state *st, const struct vidpacket *packet)
 	    && comvideo_codec.camera_src) {
 		camerad_client_force_keyframe(
 			comvideo_codec.camerad_client,
-			gst_camera_src_get_id(comvideo_codec.camera_src));
+			gst_camera_src_get_uid(comvideo_codec.camera_src));
 	}
 
 	return 0;
