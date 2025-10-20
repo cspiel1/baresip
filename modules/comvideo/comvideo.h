@@ -7,7 +7,6 @@
 #ifndef BARESIP_COMVIDEO_SRC_H
 #define BARESIP_COMVIDEO_SRC_H
 
-#include <stdlib.h>
 #include <re.h>
 #include <rem.h>
 #include <baresip.h>

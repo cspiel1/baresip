@@ -28,6 +28,7 @@
 #include <rem.h>
 #include <baresip.h>
 #include <glib.h>
+#include <v4l2camera/v4l2camera-object.h>
 #include "comvideo.h"
 
 #define MODULE_NAME                 "comvideo"
@@ -89,12 +90,6 @@ static void src_destructor(void *arg)
 	mtx_unlock(&comvideo_codec.lock_src);
 
 	if (!comvideo_codec.sources && src) {
-		gst_camera_src_set_sample_cb(
-			src,
-			GST_CAMERA_SRC_CODEC_H264,
-			0,
-			NULL, NULL);
-
 		if (comvideo_codec.camerad_client) {
 			camerad_client_remove_src(
 				comvideo_codec.camerad_client,
@@ -152,21 +147,21 @@ static int src_alloc(struct vidsrc_st **stp, const struct vidsrc *vs,
 	conf_get_u32(conf_cur(), "comvideo_keyint", &keyint);
 
 	if (!comvideo_codec.camera_src) {
-		src = camerad_client_add_src_full(
+		gchar *uid = g_uuid_string_random();
+		src = camerad_client_add_src(
 			comvideo_codec.camerad_client,
-			GST_CAMERA_COMPONENT_RTP,
-			GST_CAMERA_COMPONENT_CODEC_H264,
+			uid,
+			V4L2_TYPE_RTP,
+			V4L2_CODEC_H264,
 			st->sz.w, st->sz.h,
-			st->fps, st->bitrate, keyint);
+			st->fps, st->bitrate, keyint,
+			camera_h264_sample_received, NULL);
 
-		if (src) {
-			gst_camera_src_set_sample_cb(
-				src,
-				GST_CAMERA_SRC_CODEC_H264,
-				st->bitrate,
-				(camera_new_sample)
-					camera_h264_sample_received,
-				NULL);
+		g_free(uid);
+		if (!src) {
+			warning("comvideo: failed to create camera source\n");
+			mem_deref(st);
+			return ENODEV;
 		}
 
 		comvideo_codec.camera_src = src;
