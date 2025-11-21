@@ -614,12 +614,12 @@ static int com_switch_earlymedia(struct re_printf *pf, void *arg)
 	if (call == d.cur_call)
 		return 0;
 
-	d.cur_call = call;
 	info("commod: switching early media from call %s to call %s\n",
 	     call_id(d.cur_call), call_id(call));
 	if (call_state(d.cur_call) == CALL_STATE_INCOMING)
 		call_earlymedia_disable(d.cur_call);
 
+	d.cur_call = call;
 	if (call_state(call) != CALL_STATE_INCOMING) {
 		(void) re_hprintf(pf, "Call %s has state %s\n",
 				  carg->prm, call_statename(call));
