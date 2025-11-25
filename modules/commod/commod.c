@@ -445,7 +445,10 @@ static void call_earlymedia_enable(struct call *call)
 
 	call_set_audio_ldir(call, adir);
 	call_set_video_ldir(call, vdir);
-	call_modify(call);
+	if (call_refresh_allowed(call))
+		call_modify(call);
+	else
+		call_progress_dir(call, adir, vdir);
 }
 
 
