@@ -320,9 +320,17 @@ disp_create_client_stream(struct vidisp_st *st)
 
 	disp_enable(st,TRUE);
 
+	int err = gst_video_client_stream_get_error(st->client_stream);
+	if (err)
+		goto out;
+
 	st->converter = gst_appsrc_h264_converter_new(st->client_stream);
-	if (!st->converter) {
-		warning("comvideo: failed to create h264 converter\n");
+	if (!st->converter)
+		err = ENODEV;
+
+out:
+	if (err) {
+		warning("comvideo: client stream has error\n");
 		g_object_unref(st->client_stream);
 		st->client_stream = NULL;
 		return ENODEV;
