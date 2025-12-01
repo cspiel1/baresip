@@ -70,7 +70,8 @@ struct vidisp_st {
 	GstVideoClientStream *client_stream;
 	GstAppsrcH264Converter *converter;
 	char *peer;
-	char *identifier;
+	char *name;
+	char *id;
 };
 
 
@@ -216,12 +217,13 @@ static void disp_destructor(void *arg)
 {
 	struct vidisp_st *st = arg;
 
-	debug("comvideo: stop display\n");
+	info("comvideo: stop display\n");
 
 	stop_stream(st);
 
 	mem_deref(st->peer);
-	mem_deref(st->identifier);
+	mem_deref(st->name);
+	mem_deref(st->id);
 }
 
 
@@ -243,7 +245,8 @@ static int disp_alloc(struct vidisp_st **stp, const struct vidisp *vd,
 		return ENOMEM;
 
 	st->peer = NULL;
-	st->identifier = NULL;
+	st->name = NULL;
+	st->id   = NULL;
 
 	*stp = st;
 
@@ -258,11 +261,12 @@ disp_map_call_id(struct call *call, void *arg)
 	const char *id = call_id(call);
 	const char *peer_uri = call_peeruri(call);
 
-	if (st->identifier)
+	if (st->id)
 		return;
 
-	if (!str_cmp(peer_uri, st->peer))
-		str_dup(&st->identifier, id);
+	if (!str_cmp(peer_uri, st->peer)) {
+		re_sdprintf(&st->id, "%s", id);
+	}
 }
 
 
@@ -270,8 +274,9 @@ static int
 disp_find_identifier(struct vidisp_st *st, const char *peer)
 {
 	int err;
+	static int count = 0;
 
-	if (st->identifier)
+	if (st->id && st->name)
 		return 0;
 
 	if (!st->peer) {
@@ -280,7 +285,21 @@ disp_find_identifier(struct vidisp_st *st, const char *peer)
 			return err;
 	}
 
-	uag_filter_calls(disp_map_call_id, NULL, st);
+	if (!st->id)
+		uag_filter_calls(disp_map_call_id, NULL, st);
+
+	if (!st->id) {
+		warning("comvideo: failed to find identifier for peer %s\n",
+			peer);
+		return ENODEV;
+	}
+
+	if (!st->name)
+		re_sdprintf(&st->name, "%s_%d", st->id, count++);
+
+	if (!st->name)
+		return ENOMEM;
+
 	return 0;
 }
 
@@ -291,8 +310,8 @@ disp_create_client_stream(struct vidisp_st *st)
 	if (!st->client_stream)
 		st->client_stream = gst_video_client_create_stream(
 					comvideo_codec.video_client,
-					10,
-					st->identifier, "video/x-h264");
+					10, st->name, st->id,
+					"video/x-h264");
 
 	if (!st->client_stream) {
 		warning("comvideo: failed to create client stream\n");
@@ -324,7 +343,7 @@ disp_frame(struct vidisp_st *st, const char *peer,
 		return EINVAL;
 	}
 
-	if (!st->identifier)
+	if (!st->id || !st->name)
 		err = disp_find_identifier(st, peer);
 
 	if (err)
@@ -342,6 +361,7 @@ disp_frame(struct vidisp_st *st, const char *peer,
 	if (gst_appsrc_h264_converter_got_error(st->converter)) {
 		warning("comvideo: h264 converter got error -> retry\n");
 		stop_stream(st);
+		st->name = mem_deref(st->name);
 		return 0;
 	}
 
