@@ -399,7 +399,7 @@ static int module_init(void)
 	int err;
 
 	err  = mtx_init(&comvideo_codec.lock_src, mtx_plain) != thrd_success;
-	if(err)
+	if (err)
 		return err;
 
 	if (!gst_is_initialized()) {
