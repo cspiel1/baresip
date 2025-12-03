@@ -601,8 +601,8 @@ static int cmd_dialdir(struct re_printf *pf, void *arg)
 			re_hprintf(pf, "could not find UA for cuser=%r\n",
 				   &cp->cuser);
 			return EINVAL;
-                }
-        }
+		}
+	}
 
 	if (!ua)
 		ua = uag_find_requri_pl(&cp->uri);
