@@ -202,7 +202,9 @@ static int onvif_auth_parse_user(struct user **u, char *line, size_t linelen)
 	if (!u || !line || linelen <= 0)
 		return EINVAL;
 
-	err = re_regex(line, linelen, "[0-4]1,[a-z | A-Z | 0-9 | \\_\\^$?.\\*\\+\\-&\\[\\{\\(\\)\\}\\]/!#\\%:;=@~]*,",
+	err = re_regex(line, linelen,
+		       "[0-4]1,[a-z | A-Z | 0-9 | \\_\\^$?.\\*\\+\\-&\\[\\{"
+		       "\\(\\)\\}\\]/!#\\%:;=@~]*,",
 		&plgroupnb, &pluname);
 	if (err)
 		return err;
@@ -334,7 +336,9 @@ static void onvif_auth_getuserpasswd(struct user *u, char *passwd)
 		if (onvif_auth_getuserentryfromfile(userfile, &line, &linelen))
 			break;
 
-		if (re_regex(line, linelen, "[0-4]1,[a-z | A-Z | 0-9 | \\_\\^$?.\\*\\+\\-&\\[\\{\\(\\)\\}\\]/!#\\%:;=@~]*,[^\n]*",
+		if (re_regex(line, linelen, "[0-4]1,[a-z | A-Z | 0-9 | \\_\\^"
+			     "$?.\\*\\+\\-&\\[\\{\\(\\)\\}\\]/!#\\%:;=@~]*,"
+			     "[^\n]*",
 			NULL, &username, &pw))
 			break;
 
@@ -633,13 +637,16 @@ static int rtsp_digest_check_sha256(const struct httpauth_digest_resp *resp,
 	uint8_t response[SHA256_DIGEST_LENGTH];
 
 	char *ha1_input = NULL;
-	int ha1_inputlen = MAXPASSWDLEN + MAXUSERLEN + 255 + 2 + 1; // 2 * ':' | and '\0'
+	/* + 2 * ':' | and '\0' */
+	int ha1_inputlen = MAXPASSWDLEN + MAXUSERLEN + 255 + 2 + 1;
 	char *ha2_input = NULL;
-	int ha2_inputlen = method->l + resp->uri.l + 1 + 1; // 1 * ':' | and '\0'
+	/* + 1 * ':' | and '\0' */
+	int ha2_inputlen = method->l + resp->uri.l + 1 + 1;
 
 	char *digest_input = NULL;
-	int digest_inputlen = SHA256_DIGEST_LENGTH + resp->nonce.l + resp->nc.l +
-		resp->cnonce.l + resp->qop.l + SHA256_DIGEST_LENGTH + 5 + 1 + 255;
+	int digest_inputlen = SHA256_DIGEST_LENGTH + resp->nonce.l +
+				resp->nc.l + resp->cnonce.l + resp->qop.l +
+				SHA256_DIGEST_LENGTH + 5 + 1 + 255;
 
 	ha1_input = mem_zalloc(sizeof(char) * ha1_inputlen, NULL);
 	if (!ha1_input)
@@ -673,7 +680,8 @@ static int rtsp_digest_check_sha256(const struct httpauth_digest_resp *resp,
 	}
 
 	if (pl_isset(&resp->qop)) {
-		n = re_snprintf(digest_input, digest_inputlen, "%w:%r:%r:%r:%r:%w",
+		n = re_snprintf(digest_input, digest_inputlen,
+				"%w:%r:%r:%r:%r:%w",
 				ha1, (size_t)SHA256_DIGEST_LENGTH,
 				&resp->nonce,
 				&resp->nc,
@@ -795,8 +803,10 @@ enum userlevel rtsp_digest_auth(const struct rtsp_msg *msg)
 	onvif_auth_getuserpasswd(u, passwd);
 	if (use_sha256) {
 		err = rtsp_digest_check_sha256(resp, u, passwd, &msg->met);
-	} else {
-		err = md5_printf(ha1, "%s:%r:%s", u->name, &resp->realm, passwd);
+	}
+	else {
+		err = md5_printf(ha1, "%s:%r:%s", u->name, &resp->realm,
+				 passwd);
 		if (err)
 			goto out;
 

@@ -1005,7 +1005,8 @@ int onvif_aufilter_audio_recv_start(struct onvif_filter_stream *fs,
 
 	if (!fs->jbuf) {
 		err = jbuf_alloc(&fs->jbuf,
-			cfg->avt.audio.jbuf_del.min, cfg->avt.audio.jbuf_del.max);
+			cfg->avt.audio.jbuf_del.min,
+			cfg->avt.audio.jbuf_del.max);
 		if (err)
 			goto out;
 
