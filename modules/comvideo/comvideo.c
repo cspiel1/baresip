@@ -72,6 +72,7 @@ struct vidisp_st {
 	char *peer;
 	char *name;
 	char *id;
+	int err;
 };
 
 
@@ -351,26 +352,31 @@ disp_frame(struct vidisp_st *st, const char *peer,
 		return EINVAL;
 	}
 
+	if (st->err)
+		return st->err;
+
 	if (!st->id || !st->name)
 		err = disp_find_identifier(st, peer);
 
 	if (err)
-		return err;
+		goto out;
 
 	if (!st->client_stream || !st->converter)
 		err = disp_create_client_stream(st);
 
 	if (err)
-		return err;
+		goto out;
 
-	if (!st->client_stream || !st->converter)
-		return ENODEV;
+	if (!st->client_stream || !st->converter) {
+		err = ENODEV;
+		goto out;
+	}
 
 	if (gst_appsrc_h264_converter_got_error(st->converter)) {
 		warning("comvideo: h264 converter got error -> retry\n");
-		stop_stream(st);
-		st->name = mem_deref(st->name);
-		return 0;
+
+		err = EIO;
+		goto out;
 	}
 
 	if (frame->data[0]) {
@@ -389,7 +395,9 @@ disp_frame(struct vidisp_st *st, const char *peer,
 		warning("comvideo: frame data is NULL\n");
 	}
 
-	return 0;
+out:
+	st->err = err;
+	return err;
 }
 
 
