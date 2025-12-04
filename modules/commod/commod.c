@@ -34,7 +34,8 @@ struct commod {
 	struct hash *answmod;
 	struct tmr tmr;
 	uint64_t winterval;
-	struct tmr tmr_earlym;
+	struct tmr tmr_earlym_on;
+	struct tmr tmr_earlym_off;
 };
 
 
@@ -452,10 +453,26 @@ static void call_earlymedia_enable(struct call *call)
 }
 
 
-static void enable_earlymedia(void *arg)
+static void earlymedia_on(void *arg)
 {
 	struct call *call = arg;
 	call_earlymedia_enable(call);
+	info("commod: earlymedia enabled for call %s\n", call_id(call));
+}
+
+
+static void earlymedia_off(void *arg)
+{
+	struct call *call = arg;
+	if (call_state(d.cur_call) == CALL_STATE_INCOMING)
+		call_earlymedia_disable(d.cur_call);
+
+	d.cur_call = call;
+
+	if (call_state(d.cur_call) == CALL_STATE_INCOMING)
+		tmr_start(&d.tmr_earlym_on, 100, earlymedia_on, call);
+
+	info("commod: earlymedia disabled for call %s\n", call_id(call));
 }
 
 
@@ -516,8 +533,10 @@ static void event_handler(enum bevent_ev ev, struct bevent *event, void *arg)
 			if (!d.cur_call)
 				acc_restore_answmods();
 
-			if (d.tmr_earlym.arg == call)
-				tmr_cancel(&d.tmr_earlym);
+			if (d.tmr_earlym_on.arg == call)
+				tmr_cancel(&d.tmr_earlym_on);
+			if (d.tmr_earlym_off.arg == call)
+				tmr_cancel(&d.tmr_earlym_off);
 			break;
 		default:
 			break;
@@ -607,23 +626,15 @@ static int com_switch_earlymedia(struct re_printf *pf, void *arg)
 		return EINVAL;
 	}
 
+	tmr_cancel(&d.tmr_earlym_on);
+	tmr_cancel(&d.tmr_earlym_off);
 	if (call == d.cur_call)
 		return 0;
 
 	info("commod: switching early media from call %s to call %s\n",
 	     call_id(d.cur_call), call_id(call));
-	if (call_state(d.cur_call) == CALL_STATE_INCOMING)
-		call_earlymedia_disable(d.cur_call);
 
-	d.cur_call = call;
-	if (call_state(call) != CALL_STATE_INCOMING) {
-		(void) re_hprintf(pf, "Call %s has state %s\n",
-				  carg->prm, call_statename(call));
-		return EINVAL;
-	}
-
-	tmr_start(&d.tmr_earlym, 250, enable_earlymedia, call);
-
+	tmr_start(&d.tmr_earlym_off, 50, earlymedia_off, call);
 	return 0;
 }
 
@@ -669,7 +680,8 @@ static int module_init(void)
 	err |= cmd_register(baresip_commands(), cmdv, RE_ARRAY_SIZE(cmdv));
 	err |= hash_alloc(&d.answmod, 32);
 	tmr_init(&d.tmr);
-	tmr_init(&d.tmr_earlym);
+	tmr_init(&d.tmr_earlym_on);
+	tmr_init(&d.tmr_earlym_off);
 
 	uint64_t delay;
 	if (sd_watchdog_enabled(0, &delay)) {
@@ -702,7 +714,8 @@ static int module_close(void)
 	mem_deref(d.answmod);
 	d.cur_play = mem_deref(d.cur_play);
 	tmr_cancel(&d.tmr);
-	tmr_cancel(&d.tmr_earlym);
+	tmr_cancel(&d.tmr_earlym_on);
+	tmr_cancel(&d.tmr_earlym_off);
 
 	return 0;
 }
