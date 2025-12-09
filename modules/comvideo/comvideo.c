@@ -373,7 +373,9 @@ disp_frame(struct vidisp_st *st, const char *peer,
 	}
 
 	if (gst_appsrc_h264_converter_got_error(st->converter)) {
-		warning("comvideo: h264 converter got error -> retry\n");
+		/* Currently video.c ignores the returned error.
+		 * This means that the call resumes without video playback. */
+		warning("comvideo: h264 converter got error -> no video\n");
 
 		err = EIO;
 		goto out;
