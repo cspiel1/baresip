@@ -467,12 +467,13 @@ static void earlymedia_off(void *arg)
 	if (call_state(d.cur_call) == CALL_STATE_INCOMING)
 		call_earlymedia_disable(d.cur_call);
 
-	d.cur_call = call;
+	if (d.cur_call)
+		info("commod: earlymedia disabled for call %s\n",
+		     call_id(call));
 
+	d.cur_call = call;
 	if (call_state(d.cur_call) == CALL_STATE_INCOMING)
 		tmr_start(&d.tmr_earlym_on, 100, earlymedia_on, call);
-
-	info("commod: earlymedia disabled for call %s\n", call_id(call));
 }
 
 
@@ -522,15 +523,10 @@ static void event_handler(enum bevent_ev ev, struct bevent *event, void *arg)
 			d.cur_call = call;
 			break;
 		case BEVENT_CALL_CLOSED:
-			if (d.cur_call == call) {
+			if (d.cur_call == call)
 				d.cur_call = NULL;
-				uag_filter_calls(sel_oldest_call, NULL, call);
-				if (d.cur_call && call_state(d.cur_call)
-				    == CALL_STATE_INCOMING)
-					call_earlymedia_enable(d.cur_call);
-			}
 
-			if (!d.cur_call)
+			if (uag_call_count() <= 1)
 				acc_restore_answmods();
 
 			if (d.tmr_earlym_on.arg == call)
@@ -615,11 +611,6 @@ static int com_switch_earlymedia(struct re_printf *pf, void *arg)
 		return EINVAL;
 	}
 
-	if (!d.cur_call) {
-		(void) re_hprintf(pf, "No current call\n");
-		return EINVAL;
-	}
-
 	call = uag_call_find(carg->prm);
 	if (!call) {
 		(void) re_hprintf(pf, "Could not find call %s\n", carg->prm);
@@ -632,7 +623,7 @@ static int com_switch_earlymedia(struct re_printf *pf, void *arg)
 		return 0;
 
 	info("commod: switching early media from call %s to call %s\n",
-	     call_id(d.cur_call), call_id(call));
+	     d.cur_call  ? call_id(d.cur_call):"-", call_id(call));
 
 	tmr_start(&d.tmr_earlym_off, 50, earlymedia_off, call);
 	return 0;
