@@ -1422,6 +1422,31 @@ int video_start_source(struct video *v)
 }
 
 
+int video_set_size(struct video *v, const struct vidsz *sz)
+{
+	int err;
+
+	if (!v || !sz || !v->vtx.vs)
+		return EINVAL;
+
+	struct vtx *vtx = &v->vtx;
+	struct vidsrc *vs = vtx->vs;
+	vtx->vsrc = mem_deref(vtx->vsrc);
+	vtx->vsrc_size = *sz;
+	err = vtx->vs->alloch(&vtx->vsrc, vs, &vtx->vsrc_prm,
+			 sz, NULL, v->vtx.device,
+			 vidsrc_frame_handler, vidsrc_packet_handler,
+			 vidsrc_error_handler, vtx);
+	if (err) {
+		warning("video: could not set source to"
+			" [%u x %u] %m\n", sz->w, sz->h, err);
+	}
+
+	debug("video: set source size to %ux%u\n", sz->w, sz->h);
+	return err;
+}
+
+
 /**
  * Start the video display
  *

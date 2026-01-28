@@ -1505,6 +1505,7 @@ int   video_set_fullscreen(struct video *v, bool fs);
 void  video_vidsrc_set_device(struct video *v, const char *dev);
 int   video_set_source(struct video *v, const char *name, const char *dev);
 void  video_set_devicename(struct video *v, const char *src, const char *disp);
+int   video_set_size(struct video *v, const struct vidsz *sz);
 const char *video_get_src_dev(const struct video *v);
 const char *video_get_disp_dev(const struct video *v);
 int   video_debug(struct re_printf *pf, const struct video *v);

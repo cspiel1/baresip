@@ -5,6 +5,7 @@
  */
 #include <stdlib.h>
 #include <re.h>
+#include <rem.h>
 #include <baresip.h>
 #include <string.h>
 
@@ -1386,6 +1387,45 @@ static int switch_video_source(struct re_printf *pf, void *arg)
 }
 
 
+static int switch_video_size(struct re_printf *pf, void *arg)
+{
+	const struct cmd_arg *carg = arg;
+	struct vidsz sz;
+	struct pl w, h;
+	int err = 0;
+
+	if (re_regex(carg->prm, str_len(carg->prm), "[0-9]+x[0-9]+",
+		     &w, &h)) {
+
+		(void)re_hprintf(pf, "usage: /vidsize <width>x<height>\n");
+		return EINVAL;
+	}
+
+	sz.w = pl_u32(&w);
+	sz.h = pl_u32(&h);
+	(void)re_hprintf(pf, "switch video size: %ux%u\n", sz.w, sz.h);
+
+	for (struct le *leu = list_head(uag_list()); leu; leu = leu->next) {
+		struct ua *ua = leu->data;
+		struct le *le;
+		for (le = list_tail(ua_calls(ua)); le; le = le->prev) {
+			struct call *call = le->data;
+			struct video *v = call_video(call);
+
+			err = video_set_size(v, &sz);
+			if (err) {
+				(void)re_hprintf(pf,
+						 "failed to set video-source"
+						 " (%m)\n", err);
+				break;
+			}
+		}
+	}
+
+	return err;
+}
+
+
 #ifdef USE_TLS
 static int cmd_tls_issuer(struct re_printf *pf, void *unused)
 {
@@ -1492,6 +1532,8 @@ static const struct cmd cmdv[] = {
 {"uaaddheader", 0,  CMD_PRM, "Add custom header to UA",      cmd_addheader   },
 {"uarmheader",  0,  CMD_PRM, "Remove custom header from UA", cmd_rmheader    },
 {"vidsrc",    0,    CMD_PRM, "Switch video source",     switch_video_source  },
+{"vidsize",   0,    CMD_PRM, "Change video size during call",
+							switch_video_size    },
 {NULL,        KEYCODE_ESC,0, "Hangup call",             cmd_hangup           },
 
 #ifdef USE_TLS
