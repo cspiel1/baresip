@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2010 Alfred E. Heggestad
  */
+#include <stdint.h>
 #include <stdlib.h>
 #include <re.h>
 #include <rem.h>
@@ -1426,6 +1427,45 @@ static int switch_video_size(struct re_printf *pf, void *arg)
 }
 
 
+static int switch_video_rotation(struct re_printf *pf, void *arg)
+{
+	const struct cmd_arg *carg = arg;
+	enum vidrot rot;
+	struct pl rot_pl;
+	int err = 0;
+
+	if (re_regex(carg->prm, str_len(carg->prm), "[^ ]+",
+		     &rot_pl)) {
+
+		(void)re_hprintf(pf, "usage: /vidrot <rotation>\n"
+				"where <rotation> is one of: "
+				"normal, cw90, 180, cw270\n");
+		return EINVAL;
+	}
+
+	rot = vidrot_decode(&rot_pl);
+	(void)re_hprintf(pf, "switch video rotation: %s\n", vidrot_name(rot));
+	for (struct le *leu = list_head(uag_list()); leu; leu = leu->next) {
+		struct ua *ua = leu->data;
+		struct le *le;
+		for (le = list_tail(ua_calls(ua)); le; le = le->prev) {
+			struct call *call = le->data;
+			struct video *v = call_video(call);
+
+			err = video_set_rotation(v, (uint16_t) rot*90);
+			if (err) {
+				(void)re_hprintf(pf,
+						 "failed to set rotation"
+						 " (%m)\n", err);
+				break;
+			}
+		}
+	}
+
+	return err;
+}
+
+
 #ifdef USE_TLS
 static int cmd_tls_issuer(struct re_printf *pf, void *unused)
 {
@@ -1534,6 +1574,8 @@ static const struct cmd cmdv[] = {
 {"vidsrc",    0,    CMD_PRM, "Switch video source",     switch_video_source  },
 {"vidsize",   0,    CMD_PRM, "Change video size during call",
 							switch_video_size    },
+{"vidrot",    0,    CMD_PRM, "Change video rotation during call",
+							switch_video_rotation},
 {NULL,        KEYCODE_ESC,0, "Hangup call",             cmd_hangup           },
 
 #ifdef USE_TLS

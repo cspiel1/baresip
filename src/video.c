@@ -1447,6 +1447,35 @@ int video_set_size(struct video *v, const struct vidsz *sz)
 }
 
 
+int video_set_rotation(struct video *v, uint16_t degree)
+{
+	int err;
+
+	if (!v)
+		return EINVAL;
+
+	struct vtx *vtx = &v->vtx;
+	struct vidsrc *vs = vtx->vs;
+	vtx->vsrc = mem_deref(vtx->vsrc);
+	struct vidsz sz = vtx->vsrc_size;
+
+	enum vidrot rot = (enum vidrot) (degree / 90) % 4;
+	const char *fmt = vidrot_name(rot);
+	err = vtx->vs->alloch(&vtx->vsrc, vs, &vtx->vsrc_prm,
+			 &sz, fmt, v->vtx.device,
+			 vidsrc_frame_handler, vidsrc_packet_handler,
+			 vidsrc_error_handler, vtx);
+	if (err) {
+		warning("video: could not set source to"
+			" [%u x %u] %m\n", sz.w, sz.h, err);
+	}
+
+	debug("video: set source size to [%u x %u] with rotation %s\n",
+	      sz.w, sz.h, fmt);
+	return err;
+}
+
+
 /**
  * Start the video display
  *

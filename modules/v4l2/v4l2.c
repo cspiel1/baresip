@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2010 Alfred E. Heggestad
  */
+#include <stdint.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,6 +57,9 @@ struct vidsrc_st {
 	struct buffer *buffers;
 	unsigned int   n_buffers;
 	vidsrc_frame_h *frameh;
+	enum vidrot rot;
+	uint8_t *rotbuf;
+	uint8_t *convbuf;
 	void *arg;
 };
 
@@ -354,6 +358,26 @@ static void call_frame_handler(struct vidsrc_st *st, uint8_t *buf,
 
 	vidframe_init_buf(&frame, match_fmt(st->pixfmt), &st->sz, buf);
 
+	if (st->rot == VIDROT_90_CW) {
+		if (!st->rotbuf)
+			st->rotbuf = mem_zalloc(vidframe_size(VID_FMT_YUV420P,
+							      &st->sz), NULL);
+
+		if (!st->convbuf)
+			st->convbuf = mem_zalloc(vidframe_size(VID_FMT_YUV420P,
+							      &st->sz), NULL);
+
+		if (!st->rotbuf || !st->convbuf)
+			return;
+
+		struct vidframe rot_frame;
+		vidframe_rotate_90cw(&rot_frame, &frame, st->rotbuf,
+				     st->convbuf);
+		frame = rot_frame;
+	}
+
+	info("v4l2: frame received: size=%u x %u fmt=%s\n",
+	     frame.size.w, frame.size.h, vidfmt_name(frame.fmt));
 	st->frameh(&frame, timestamp, st->arg);
 }
 
@@ -455,6 +479,8 @@ static void destructor(void *arg)
 
 	stop_capturing(st);
 	uninit_device(st);
+	mem_deref(st->rotbuf);
+	mem_deref(st->convbuf);
 
 	if (st->fd >= 0)
 		v4l2_close(st->fd);
@@ -489,7 +515,6 @@ static int alloc(struct vidsrc_st **stp, const struct vidsrc *vs,
 	int err;
 
 	(void)prm;
-	(void)fmt;
 	(void)packeth;
 	(void)errorh;
 
@@ -516,6 +541,9 @@ static int alloc(struct vidsrc_st **stp, const struct vidsrc *vs,
 	st->frameh = frameh;
 	st->arg    = arg;
 	st->pixfmt = 0;
+	struct pl plrot;
+	pl_set_str(&plrot, fmt);
+	st->rot = vidrot_decode(&plrot);
 
 	err = vd_open(st, dev);
 	if (err)
