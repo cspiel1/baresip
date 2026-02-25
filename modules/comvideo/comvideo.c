@@ -233,7 +233,6 @@ static int disp_alloc(struct vidisp_st **stp, const struct vidisp *vd,
 		      vidisp_resize_h *resizeh, void *arg)
 {
 	struct vidisp_st *st;
-	int err = 0;
 
 	(void) prm;
 	(void) vd;
@@ -249,9 +248,15 @@ static int disp_alloc(struct vidisp_st **stp, const struct vidisp *vd,
 	st->name = NULL;
 	st->id   = NULL;
 
+	if (!gst_video_client_is_running(comvideo_codec.video_client)) {
+		warning("comvideo: no video server available. "
+			"no video display for this call.\n");
+		st->err = EIO;
+	}
+
 	*stp = st;
 
-	return err;
+	return 0;
 }
 
 
@@ -319,7 +324,7 @@ disp_create_client_stream(struct vidisp_st *st)
 		return ENODEV;
 	}
 
-	disp_enable(st,TRUE);
+	disp_enable(st, TRUE);
 
 	int err = gst_video_client_stream_get_error(st->client_stream);
 	if (err)
@@ -352,8 +357,11 @@ disp_frame(struct vidisp_st *st, const char *peer,
 		return EINVAL;
 	}
 
-	if (st->err)
+	if (st->err) {
+		/* Currently video.c ignores the returned error.
+		 * This means that the call resumes without video playback. */
 		return st->err;
+	}
 
 	if (!st->id || !st->name)
 		err = disp_find_identifier(st, peer);
@@ -375,7 +383,8 @@ disp_frame(struct vidisp_st *st, const char *peer,
 	if (gst_appsrc_h264_converter_got_error(st->converter)) {
 		/* Currently video.c ignores the returned error.
 		 * This means that the call resumes without video playback. */
-		warning("comvideo: h264 converter got error -> no video\n");
+		warning("comvideo: h264 converter got error. "
+			"no video display for this call.\n");
 
 		err = EIO;
 		goto out;
