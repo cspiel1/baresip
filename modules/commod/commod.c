@@ -371,8 +371,9 @@ static bool amle_get_applyh(struct le *le, void *arg)
 
 static enum answermode acc_answmod_get(const struct account *acc)
 {
-	enum answermode am = ANSWERMODE_MANUAL;
+	enum answermode am = account_answermode(acc);
 
+	/* override with backup answermode */
 	hash_lookup(d.answmod, hash_fast_str(account_aor(acc)),
 		    amle_get_applyh, &am);
 
@@ -457,7 +458,7 @@ static void earlymedia_on(void *arg)
 {
 	struct call *call = arg;
 	call_earlymedia_enable(call);
-	info("commod: earlymedia enabled for call %s\n", call_id(call));
+	info("commod: earlymedia enabled of call %s\n", call_id(call));
 }
 
 
@@ -468,8 +469,8 @@ static void earlymedia_off(void *arg)
 		call_earlymedia_disable(d.cur_call);
 
 	if (d.cur_call)
-		info("commod: earlymedia disabled for call %s\n",
-		     call_id(call));
+		info("commod: earlymedia disabled of call %s\n",
+		     call_id(d.cur_call));
 
 	d.cur_call = call;
 	if (call_state(d.cur_call) == CALL_STATE_INCOMING)
