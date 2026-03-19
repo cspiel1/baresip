@@ -488,6 +488,15 @@ static void stop_external_video(struct call *call)
 }
 
 
+/**
+ * This event handler is used to switch on/off the external video for the call
+ * if there is a matching contact with the video_url parameter. If there is no
+ * contact or no video_url parameter, then the event handler does nothing.
+ *
+ * @param ev     Baresip event value
+ * @param event  Baresip event object
+ * @param arg    User argument (unused)
+ */
 static void event_handler(enum bevent_ev ev, struct bevent *event, void *arg)
 {
 	struct ua      *ua  = bevent_get_ua(event);
