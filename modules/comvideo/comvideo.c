@@ -412,12 +412,118 @@ out:
 }
 
 
+static bool call_has_external_video(struct call *call, char **urlp,
+				    bool *insecure, bool *hncheck)
+{
+	const char *peeruri = call_peeruri(call);
+	if (!peeruri)
+		return false;
+
+	const struct contacts *contacts = baresip_contacts();
+	struct contact *con = contact_find_host(contacts, peeruri);
+	if (!con)
+		return false;
+
+	struct sip_addr *addr = contact_addr(con);
+	if (!addr || !pl_isset(&addr->params))
+		return false;
+
+	struct pl pl1 = PL_INIT;
+	if (msg_param_decode(&addr->params, "video_url", &pl1))
+		return false;
+
+	struct pl pl2 = PL_INIT;
+	struct pl pl3 = PL_INIT;
+	msg_param_decode(&addr->params, "video_insecure", &pl2);
+	msg_param_decode(&addr->params, "video_hncheck",  &pl3);
+
+	if (insecure) {
+		bool ins = false;
+		pl_bool(&ins, &pl1);
+		*insecure = ins;
+	}
+
+	if (hncheck) {
+		bool hnc = true;
+		pl_bool(&hnc, &pl2);
+		*hncheck = hnc;
+	}
+
+	if (urlp) {
+		int err = pl_strdup(urlp, &pl1);
+		if (err)
+			return false;
+	}
+
+	return true;
+}
+
+
+static void apply_contact_external_video(struct call *call)
+{
+	bool insecure;
+	bool hnc;
+	char *url;
+	if (!call_has_external_video(call, &url, &insecure, &hnc))
+		return;
+
+	info("comvideo: start external video for call %s peer %s url %s\n",
+	     call_id(call), call_peeruri(call), url);
+	gst_video_client_add_external_stream(
+			comvideo_codec.video_client, 0, call_peeruri(call),
+			call_id(call), url, insecure, hnc);
+	mem_deref(url);
+}
+
+
+static void stop_external_video(struct call *call)
+{
+	if (!call_has_external_video(call, NULL, NULL, NULL))
+		return;
+
+	info("comvideo: stop external video for call %s peer %s\n",
+	     call_id(call), call_peeruri(call));
+	gst_video_client_remove_external_stream(
+			comvideo_codec.video_client, call_id(call));
+}
+
+
+static void event_handler(enum bevent_ev ev, struct bevent *event, void *arg)
+{
+	struct ua      *ua  = bevent_get_ua(event);
+	struct account *acc = ua_account(ua);
+	struct call   *call = bevent_get_call(event);
+	const char    *prm  = bevent_get_text(event);
+	(void)arg;
+
+	debug("comvid: [ ua=%s call=%s ] event: %s (%s)\n",
+	     account_aor(acc), call_id(call), bevent_str(ev), prm);
+
+	switch (ev) {
+		case BEVENT_CALL_INCOMING:
+			apply_contact_external_video(call);
+		break;
+		case BEVENT_CALL_ESTABLISHED:
+			if (!call_is_outgoing(call))
+				break;
+
+			apply_contact_external_video(call);
+		break;
+		case BEVENT_CALL_CLOSED:
+			stop_external_video(call);
+		default:
+		break;
+	}
+}
+
+
 static int module_init(void)
 {
 	struct conf *conf;
 	int err;
 
 	err  = mtx_init(&comvideo_codec.lock_src, mtx_plain) != thrd_success;
+	err |= bevent_register(event_handler, NULL);
 	if (err)
 		return err;
 
@@ -481,6 +587,8 @@ static int module_init(void)
 
 
 static int module_close(void) {
+	bevent_unregister(event_handler);
+
 	vid_src = mem_deref(vid_src);
 	vid_disp = mem_deref(vid_disp);
 	vidcodec_unregister(&h264);
