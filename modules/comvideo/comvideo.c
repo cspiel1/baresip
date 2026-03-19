@@ -500,19 +500,47 @@ static void event_handler(enum bevent_ev ev, struct bevent *event, void *arg)
 	     account_aor(acc), call_id(call), bevent_str(ev), prm);
 
 	switch (ev) {
-		case BEVENT_CALL_INCOMING:
-			apply_contact_external_video(call);
-		break;
-		case BEVENT_CALL_ESTABLISHED:
-			if (!call_is_outgoing(call))
-				break;
+	case BEVENT_CALL_INCOMING:
+		apply_contact_external_video(call);
+	break;
+	case BEVENT_CALL_ESTABLISHED:
+		if (!call_is_outgoing(call))
+			break;
 
-			apply_contact_external_video(call);
-		break;
-		case BEVENT_CALL_CLOSED:
-			stop_external_video(call);
-		default:
-		break;
+		apply_contact_external_video(call);
+	break;
+	case BEVENT_CALL_HOLD:
+		stop_external_video(call);
+	break;
+	case BEVENT_CALL_RESUME:
+		apply_contact_external_video(call);
+	break;
+	case BEVENT_CALL_CLOSED:
+		stop_external_video(call);
+	break;
+	case BEVENT_MODULE: {
+		if (call_state(call) != CALL_STATE_INCOMING)
+			break;
+
+		struct pl mod, evname, callid;
+		int err;
+		err = re_regex(prm, strlen(prm), "[^,]*,[^,]*,[~]*",
+				&mod, &evname, &callid);
+		if (err)
+			break;
+
+		if (pl_strcmp(&mod, "commod") ||
+			pl_strcmp(&evname, "switchearly"))
+			break;
+
+		stop_external_video(call);
+		struct call *tocall = uag_call_find_pl(&callid);
+		if (tocall)
+			apply_contact_external_video(tocall);
+	}
+	break;
+	default:
+	break;
 	}
 }
 

@@ -627,6 +627,8 @@ static int com_switch_earlymedia(struct re_printf *pf, void *arg)
 	     d.cur_call  ? call_id(d.cur_call):"-", call_id(call));
 
 	tmr_start(&d.tmr_earlym_off, 50, earlymedia_off, call);
+	struct ua *ua = call_get_ua(call);
+	module_event("commod", "switchearly", ua, d.cur_call, "%s", carg->prm);
 	return 0;
 }
 
