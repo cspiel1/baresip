@@ -415,12 +415,9 @@ out:
 static bool call_has_external_video(struct call *call, char **urlp,
 				    bool *insecure, bool *hncheck)
 {
-	const char *peeruri = call_peeruri(call);
-	if (!peeruri)
-		return false;
-
 	const struct contacts *contacts = baresip_contacts();
-	struct contact *con = contact_find_host(contacts, peeruri);
+	struct contact *con = contact_find(contacts,
+					   call_peerroute(call));
 	if (!con)
 		return false;
 
@@ -468,9 +465,9 @@ static void apply_contact_external_video(struct call *call)
 		return;
 
 	info("comvideo: start external video for call %s peer %s url %s\n",
-	     call_id(call), call_peeruri(call), url);
+	     call_id(call), call_peerroute(call), url);
 	gst_video_client_add_external_stream(
-			comvideo_codec.video_client, 0, call_peeruri(call),
+			comvideo_codec.video_client, 0, call_peerroute(call),
 			call_id(call), url, insecure, hnc);
 	mem_deref(url);
 }
@@ -481,8 +478,8 @@ static void stop_external_video(struct call *call)
 	if (!call_has_external_video(call, NULL, NULL, NULL))
 		return;
 
-	info("comvideo: stop external video for call %s peer %s\n",
-	     call_id(call), call_peeruri(call));
+	info("comvideo: stop external video for call %s route %s\n",
+	     call_id(call), call_peerroute(call));
 	gst_video_client_remove_external_stream(
 			comvideo_codec.video_client, call_id(call));
 }
