@@ -45,6 +45,7 @@ struct call {
 	char *contact_uri;        /**< Peer Contact SIP Address             */
 	char *peer_uri;           /**< Peer SIP Address                     */
 	char *peer_name;          /**< Peer display name                    */
+	char *peer_route;         /**< Peer route uri                       */
 	struct sa msg_src;        /**< Peer message source address          */
 	char *diverter_uri;       /**< Diverter SIP Address                 */
 	char *id;                 /**< Cached session call-id               */
@@ -352,6 +353,7 @@ static void call_destructor(void *arg)
 	mem_deref(call->peer_uri);
 	mem_deref(call->peer_name);
 	mem_deref(call->replaces);
+	mem_deref(call->peer_route);
 	mem_deref(call->aluri);
 	mem_deref(call->diverter_uri);
 	mem_deref(call->audio);
@@ -877,6 +879,14 @@ int call_alloc(struct call **callp, const struct config *cfg, struct list *lst,
 			err |= pl_strdup(&call->contact_uri, &addr.auri);
 
 		err |= pl_strdup(&call->peer_uri, &msg->from.auri);
+
+		hdr = sip_msg_hdr(msg, SIP_HDR_RECORD_ROUTE);
+		if (hdr && 0 == sip_addr_decode(&addr, &hdr->val)) {
+			addr.uri.user = msg->from.uri.user;
+			addr.uri.params = pl_null;
+			err |= re_sdprintf(&call->peer_route, "%H",
+					   uri_encode, &addr.uri);
+		}
 	}
 
 	if (err)
@@ -1565,6 +1575,15 @@ const char *call_contacturi(const struct call *call)
 		return NULL;
 
 	return call->outgoing ? call->peer_uri : call->contact_uri;
+}
+
+
+const char *call_peerroute(const struct call *call)
+{
+	if (!call)
+		return NULL;
+
+	return call->peer_route ? call->peer_route : call->peer_uri;
 }
 
 
