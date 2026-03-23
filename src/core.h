@@ -240,6 +240,8 @@ const struct sa *reg_laddr(const struct reg *reg);
 const struct sa *reg_paddr(const struct reg *reg);
 void reg_set_custom_hdrs(struct reg *reg, const struct list *hdrs);
 uint32_t reg_proxy_expires(const struct reg *reg);
+const struct uri *reg_route(const struct reg *reg);
+int reg_id(const struct reg *reg);
 
 /*
  * RTP Stats
@@ -377,6 +379,7 @@ void sipsess_conn_handler(const struct sip_msg *msg, void *arg);
 bool ua_catchall(struct ua *ua);
 bool ua_reghasladdr(const struct ua *ua, const struct sa *laddr);
 int uas_req_auth(struct ua *ua, const struct sip_msg *msg);
+const struct uri *ua_reg_route(const struct ua *ua);
 
 /*
  * User-Agent Group

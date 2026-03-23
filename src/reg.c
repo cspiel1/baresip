@@ -440,3 +440,18 @@ uint32_t reg_proxy_expires(const struct reg *reg)
 
 	return sipreg_proxy_expires(reg->sipreg);
 }
+
+
+const struct uri *reg_route(const struct reg *reg)
+{
+	if (!reg || !reg->sipreg)
+		return NULL;
+
+	return sipreg_route(reg->sipreg);
+}
+
+
+int reg_id(const struct reg *reg)
+{
+	return reg ? reg->id : -1;
+}

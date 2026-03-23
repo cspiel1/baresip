@@ -806,6 +806,34 @@ int call_streams_alloc(struct call *call)
 }
 
 
+static int set_peer_route(struct call *call, const struct sip_msg *msg)
+{
+	if (!msg)
+		return 0;
+
+	struct uri uri;
+
+	/* First choice: Record-Route header */
+	const struct sip_hdr *hdr = sip_msg_hdr(msg, SIP_HDR_RECORD_ROUTE);
+	struct sip_addr addr;
+	if (hdr && 0 == sip_addr_decode(&addr, &hdr->val)) {
+		uri = addr.uri;
+		goto out;
+	}
+
+	/* Second choice: REGISTER route */
+	const struct uri *ruri = ua_reg_route(call->ua);
+	if (!ruri)
+		return 0;
+
+	uri = *ruri;
+out:
+	uri.user = msg->from.uri.user;
+	uri.params = pl_null;
+	return re_sdprintf(&call->peer_route, "%H", uri_encode, &uri);
+}
+
+
 /**
  * Allocate a new Call state object
  *
@@ -879,15 +907,9 @@ int call_alloc(struct call **callp, const struct config *cfg, struct list *lst,
 			err |= pl_strdup(&call->contact_uri, &addr.auri);
 
 		err |= pl_strdup(&call->peer_uri, &msg->from.auri);
-
-		hdr = sip_msg_hdr(msg, SIP_HDR_RECORD_ROUTE);
-		if (hdr && 0 == sip_addr_decode(&addr, &hdr->val)) {
-			addr.uri.user = msg->from.uri.user;
-			addr.uri.params = pl_null;
-			err |= re_sdprintf(&call->peer_route, "%H",
-					   uri_encode, &addr.uri);
-		}
+		err |= set_peer_route(call, msg);
 	}
+
 
 	if (err)
 		goto out;

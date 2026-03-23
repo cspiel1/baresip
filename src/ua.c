@@ -1728,6 +1728,33 @@ const char *ua_outbound(const struct ua *ua)
 
 
 /**
+ * Get the route URI from the first successful registration
+ *
+ * @param ua User-Agent object
+ *
+ * @return Route URI, or NULL if no successful registration exists
+ */
+const struct uri *ua_reg_route(const struct ua *ua)
+{
+	if (!ua)
+		return NULL;
+
+	struct le *le;
+	for (le = ua->regl.head; le; le = le->next) {
+		const struct reg *reg = le->data;
+		if (!reg_isok(reg))
+			continue;
+
+		const struct uri *uri = reg_route(reg);
+		if (uri)
+			return uri;
+	}
+
+	return NULL;
+}
+
+
+/**
  * Get the current call object of a User-Agent
  *
  * @param ua User-Agent object
