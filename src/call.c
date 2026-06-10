@@ -431,7 +431,6 @@ static void menc_event_handler(enum menc_event event,
 {
 	struct call *call = arg;
 	int err;
-	(void)strm;
 	MAGIC_CHECK(call);
 
 	debug("call: mediaenc event '%s' (%s)\n", menc_event_name(event), prm);
@@ -465,6 +464,16 @@ static void menc_event_handler(enum menc_event event,
 			info("call: mediaenc: no match for stream (%s)\n",
 			     prm);
 		}
+		break;
+
+	case MENC_EVENT_REKEY_NEEDED:
+		info("call: SRTP TX key lifetime reached (%s),"
+		     " initiating re-INVITE\n", prm);
+		stream_remove_menc_media_state(strm);
+		err = call_modify(call);
+		if (err)
+			warning("call: SRTP rekey call_modify failed"
+				" (%m)\n", err);
 		break;
 
 	default:

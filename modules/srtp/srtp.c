@@ -43,6 +43,7 @@ struct menc_st {
 	mtx_t *mtx_tx, *mtx_rx;
 	RE_ATOMIC bool use_srtp;
 	RE_ATOMIC bool got_sdp;
+	RE_ATOMIC uint64_t tx_countdown; /**< counts down to rekey, 0=off   */
 	char *crypto_suite;
 
 	void *rtpsock;
@@ -65,6 +66,8 @@ static const char *preferred_suite = aes_cm_128_hmac_sha1_80;
 static void destructor(void *arg)
 {
 	struct menc_st *st = arg;
+
+	re_thread_async_main_cancel((intptr_t)st);
 
 	mem_deref(st->sdpm);
 	mem_deref(st->crypto_suite);
@@ -192,10 +195,29 @@ static int start_srtp(struct menc_st *st, const char *suite_name)
 }
 
 
+struct rekey_work {
+	struct menc_st *st;  /* non-owning */
+};
+
+
+static void rekey_main(int err, void *arg)
+{
+	struct rekey_work *w = arg;
+
+	if (!err && w->st->sess->eventh)
+		w->st->sess->eventh(MENC_EVENT_REKEY_NEEDED,
+				    sdp_media_name(w->st->sdpm),
+				    (struct stream *)w->st->strm,
+				    w->st->sess->arg);
+	mem_deref(w);
+}
+
+
 static bool send_handler(int *err, struct sa *dst, struct mbuf *mb, void *arg)
 {
 	struct menc_st *st = arg;
 	size_t len = mbuf_get_left(mb);
+	bool needs_rekey = false;
 	int lerr = 0;
 	(void)dst;
 
@@ -221,6 +243,12 @@ static bool send_handler(int *err, struct sa *dst, struct mbuf *mb, void *arg)
 
 unlock_out:
 	mtx_unlock(st->mtx_tx);
+
+	if (!lerr && re_atomic_rlx(&st->tx_countdown)) {
+		if (re_atomic_rlx_sub(&st->tx_countdown, 1) == 1)
+			needs_rekey = true;
+	}
+
 out:
 	if (lerr) {
 		warning("srtp: failed to encrypt %s-packet"
@@ -229,6 +257,15 @@ out:
 			      len, lerr);
 		*err = lerr;
 		return false;
+	}
+
+	if (needs_rekey && st->sess->eventh) {
+		struct rekey_work *w = mem_zalloc(sizeof(*w), NULL);
+		if (w) {
+			w->st = st;
+			re_thread_async_main_id((intptr_t)st, NULL,
+						rekey_main, w);
+		}
 	}
 
 	return false;  /* continue processing */
@@ -407,6 +444,16 @@ static bool sdp_attr_handler(const char *name, const char *value, void *arg)
 }
 
 
+static void srtp_init_tx_countdown(struct menc_st *st)
+{
+	uint32_t exp = 0;
+
+	(void)conf_get_u32(conf_cur(), "srtp_keylifetime", &exp);
+	re_atomic_rlx_set(&st->tx_countdown,
+			  exp ? (1ULL << exp) * 9 / 10 : 0);
+}
+
+
 static int media_txrekey(struct menc_media *m)
 {
 	const char *rattr = NULL;
@@ -421,6 +468,7 @@ static int media_txrekey(struct menc_media *m)
 	mtx_unlock(st->mtx_tx);
 
 	rand_bytes(st->key_tx, sizeof(st->key_tx));
+	srtp_init_tx_countdown(st);
 
 	if (sdp_media_rattr(st->sdpm, "crypto")) {
 
@@ -529,6 +577,7 @@ static int media_alloc(struct menc_media **stp, struct menc_sess *sess,
 			goto out;
 
 		rand_bytes(st->key_tx, sizeof(st->key_tx));
+		srtp_init_tx_countdown(st);
 	}
 
 	/* SDP handling */

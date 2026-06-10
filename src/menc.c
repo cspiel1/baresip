@@ -79,6 +79,7 @@ const char *menc_event_name(enum menc_event event)
 	case MENC_EVENT_SECURE:         return "Secure";
 	case MENC_EVENT_VERIFY_REQUEST: return "Verify Request";
 	case MENC_EVENT_PEER_VERIFIED:  return "Peer Verified";
+	case MENC_EVENT_REKEY_NEEDED:   return "Rekey Needed";
 	default: return "?";
 	}
 }

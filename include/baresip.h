@@ -796,6 +796,7 @@ enum menc_event {
 	MENC_EVENT_SECURE,          /**< Media is secured               */
 	MENC_EVENT_VERIFY_REQUEST,  /**< Request user to verify a code  */
 	MENC_EVENT_PEER_VERIFIED,   /**< Peer was verified successfully */
+	MENC_EVENT_REKEY_NEEDED,    /**< TX key lifetime reached        */
 };
 
 
