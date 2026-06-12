@@ -3141,6 +3141,108 @@ out:
 }
 
 
+int test_call_srtp_keylifetime(void)
+{
+	struct fixture fix, *f = &fix;
+	struct cancel_rule *cr = NULL;
+	struct auplay *auplay = NULL;
+	char *a_tx_key = NULL, *a_tx_key_new = NULL;
+	int err = 0;
+
+	/* srtp_keylifetime 7: threshold = (2^7)*9/10 = 115 pkts (~115 ms
+	 * at ptime=1ms), well within the 5-second test timeout and large
+	 * enough that a second rekey does not interfere. */
+	static const char cfg[] =
+		"ausrc_format    s16\nsrtp_keylifetime 7\n";
+	err = conf_configure_buf((uint8_t *)cfg, str_len(cfg));
+	TEST_ERR(err);
+
+	err =  module_load(".", "srtp");
+	err |= module_load(".", "ausine");
+	TEST_ERR(err);
+
+	err = mock_auplay_register(&auplay, baresip_auplayl(),
+		auframe_handler, f);
+	TEST_ERR(err);
+
+	fixture_init_prm(f, ";mediaenc=srtp-mand"
+		";ptime=1;audio_player=mock-auplay,a");
+	f->b.ua = mem_deref(f->b.ua);
+	err = ua_alloc(&f->b.ua, "B <sip:b@127.0.0.1>;mediaenc=srtp-mand"
+		";regint=0;ptime=1;audio_player=mock-auplay,b");
+	TEST_ERR(err);
+
+	f->behaviour = BEHAVIOUR_ANSWER;
+	f->estab_action = ACTION_NOTHING;
+
+	cancel_rule_new(BEVENT_CALL_ESTABLISHED, f->a.ua, 0, 0, 1);
+	cancel_rule_and(BEVENT_CALL_ESTABLISHED, f->b.ua, 1, 0, 1);
+
+	err = ua_connect(f->a.ua, 0, NULL, f->buri, VIDMODE_ON);
+	TEST_ERR(err);
+
+	err = re_main_timeout(5000);
+	TEST_ERR(err);
+	TEST_ERR(fix.err);
+
+	/* record A's initial TX key before the automatic rekey */
+	struct sdp_media *m;
+	m = stream_sdpmedia(audio_strm(call_audio(ua_call(f->a.ua))));
+	sdp_media_lattr_apply(m, "crypto", sdp_crypto_handler, &a_tx_key);
+
+	/* phase 1: wait for enough audio to cross the countdown threshold
+	 * (115 pkts) and trigger the automatic rekey + re-INVITE */
+	cancel_rule_new(BEVENT_CUSTOM, f->a.ua, 0, 0, 1);
+	cr->prm = "auframe";
+	cr->n_auframe = 130;
+	cancel_rule_and(BEVENT_CUSTOM, f->b.ua, 1, 0, 1);
+	cr->prm = "auframe";
+	cr->n_auframe = 130;
+
+	err = re_main_timeout(5000);
+	TEST_ERR(err);
+	TEST_ERR(fix.err);
+
+	/* phase 2: wait for a few more frames so the re-INVITE has
+	 * completed and the SDP reflects the new keys */
+	cancel_rule_new(BEVENT_CUSTOM, f->a.ua, 0, 0, 1);
+	cr->prm = "auframe";
+	cr->n_auframe = 10;
+	cancel_rule_and(BEVENT_CUSTOM, f->b.ua, 1, 0, 1);
+	cr->prm = "auframe";
+	cr->n_auframe = 10;
+
+	err = re_main_timeout(5000);
+	TEST_ERR(err);
+	TEST_ERR(fix.err);
+
+	m = stream_sdpmedia(audio_strm(call_audio(ua_call(f->a.ua))));
+	sdp_media_lattr_apply(m, "crypto", sdp_crypto_handler, &a_tx_key_new);
+
+	/* A's TX key must have changed due to the automatic rekey */
+	ASSERT_TRUE(0 != str_casecmp(a_tx_key, a_tx_key_new));
+
+out:
+	if (err)
+		failure_debug(f, false);
+
+	fixture_close(f);
+	mem_deref(auplay);
+
+	module_unload("ausine");
+	module_unload("srtp");
+
+	a_tx_key     = mem_deref(a_tx_key);
+	a_tx_key_new = mem_deref(a_tx_key_new);
+
+	/* restore default config so subsequent tests are unaffected */
+	(void)conf_configure_buf((uint8_t *)"ausrc_format    s16\n",
+				 str_len("ausrc_format    s16\n"));
+
+	return err;
+}
+
+
 #ifdef USE_TLS
 int test_call_sni(void)
 {
