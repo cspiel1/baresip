@@ -186,11 +186,19 @@ static int open_encoder(struct videnc_state *st,
 
 		av_opt_set(st->ctx->priv_data, "profile", "baseline", 0);
 		av_opt_set(st->ctx->priv_data, "preset", "ultrafast", 0);
-		av_opt_set(st->ctx->priv_data, "tune", "zerolatency", 0);
 
 		if (st->u.h264.packetization_mode == 0) {
+			av_opt_set(st->ctx->priv_data, "tune",
+				   "zerolatency", 0);
 			av_opt_set_int(st->ctx->priv_data,
 				       "slice-max-size", prm->pktsize, 0);
+		}
+		else {
+			/* mode=1: skip zerolatency (forces sliced-threads,
+			 * preventing large NAL units). One slice per frame
+			 * ensures h264_packetize() produces FU-A fragments.
+			 */
+			st->ctx->slices = 1;
 		}
 	}
 
@@ -358,6 +366,10 @@ int avcodec_encode_update(struct videnc_state **vesp,
 	}
 
 	st->fmt = -1;
+
+	if (st->codec_id == AV_CODEC_ID_H264)
+		st->u.h264.packetization_mode =
+			h264_packetization_mode(vc->variant);
 
 	err = init_encoder(st, vc->name);
 	if (err) {

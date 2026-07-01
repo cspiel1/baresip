@@ -25,8 +25,10 @@
  * Config options:
  *
  \verbatim
-      avcodec_h264enc  <NAME>  ; e.g. h264_nvenc, h264_videotoolbox
-      avcodec_h264dec  <NAME>  ; e.g. h264_cuvid, h264_vda, h264_qsv
+      avcodec_h264enc      <NAME>  ; e.g. h264_nvenc, h264_videotoolbox
+      avcodec_h264dec      <NAME>  ; e.g. h264_cuvid, h264_vda, h264_qsv
+      avcodec_h264_pktmode <0|1>   ; preferred packetization-mode in outgoing
+				     offer
  \endverbatim
  *
  * References:
@@ -125,8 +127,18 @@ static int module_init(void)
 	avcodec_h265dec = avcodec_find_decoder_by_name(h265dec);
 
 	if (avcodec_h264enc || avcodec_h264dec) {
-		vidcodec_register(vidcodecl, &h264);
-		vidcodec_register(vidcodecl, &h264_1);
+		uint32_t pktzmode = 0;
+
+		conf_get_u32(conf_cur(), "avcodec_h264_pktmode", &pktzmode);
+
+		if (pktzmode == 1) {
+			vidcodec_register(vidcodecl, &h264_1);
+			vidcodec_register(vidcodecl, &h264);
+		}
+		else {
+			vidcodec_register(vidcodecl, &h264);
+			vidcodec_register(vidcodecl, &h264_1);
+		}
 	}
 
 	if (avcodec_h265enc || avcodec_h265dec)

@@ -83,6 +83,13 @@ bool avcodec_h264_fmtp_cmp(const char *lfmtp, const char *rfmtp, void *arg)
 	if (!vc)
 		return false;
 
+	/* RFC 6184 requires the answer to echo packetization-mode, but some
+	 * implementations omit it.  In that case accept any mode; the
+	 * preferred variant is then determined by registration order.
+	 */
+	if (!rfmtp || !strstr(rfmtp, "packetization-mode"))
+		return true;
+
 	return h264_packetization_mode(vc->variant) ==
 		h264_packetization_mode(rfmtp);
 }
