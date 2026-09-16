@@ -32,6 +32,7 @@ struct rtp_receiver {
 	bool pseq_set;                 /**< True if sequence number is set   */
 	bool rtp_estab;                /**< True if RTP stream established   */
 	RE_ATOMIC bool run;            /**< True if RX thread is running     */
+	RE_ATOMIC bool stop;           /**< True if RX thread should stop    */
 	bool start_rtcp;               /**< Start RTCP flag                  */
 	char *cname;                   /**< Canonical Name for RTCP send     */
 	struct sa rtcp_peer;           /**< RTCP address of Peer             */
@@ -173,35 +174,35 @@ static void rtprecv_periodic(void *arg)
 {
 	struct rtp_receiver *rx = arg;
 
-	if (re_atomic_rlx(&rx->run)) {
-		mtx_lock(rx->mtx);
-		bool pinhole    = rx->pinhole;
-		mtx_unlock(rx->mtx);
-		tmr_start(&rx->tmr, 10, rtprecv_periodic, rx);
-		mtx_lock(rx->mtx);
-		if (rx->start_rtcp) {
-			int err = 0;
-			rx->start_rtcp = false;
-			rtcp_start(rx->rtp, rx->cname, &rx->rtcp_peer);
-			mtx_unlock(rx->mtx);
-			if (pinhole) {
-				err = rtcp_send_app(rx->rtp, "PING",
-						    (void *)"PONG", 4);
-			}
-			if (err) {
-				warning("rtprecv: rtcp_send_app failed (%m)\n",
-					err);
-			}
-		}
-		else {
-			mtx_unlock(rx->mtx);
-		}
-	}
-	else {
+	if (re_atomic_rlx(&rx->stop)) {
 		tmr_cancel(&rx->tmr_decode);
 		udp_thread_detach(rtp_sock(rx->rtp));
 		udp_thread_detach(rtcp_sock(rx->rtp));
 		re_cancel();
+		return;
+	}
+
+	mtx_lock(rx->mtx);
+	bool pinhole    = rx->pinhole;
+	mtx_unlock(rx->mtx);
+	tmr_start(&rx->tmr, 10, rtprecv_periodic, rx);
+	mtx_lock(rx->mtx);
+	if (rx->start_rtcp) {
+		int err = 0;
+		rx->start_rtcp = false;
+		rtcp_start(rx->rtp, rx->cname, &rx->rtcp_peer);
+		mtx_unlock(rx->mtx);
+		if (pinhole) {
+			err = rtcp_send_app(rx->rtp, "PING",
+					    (void *)"PONG", 4);
+		}
+		if (err) {
+			warning("rtprecv: rtcp_send_app failed (%m)\n",
+				err);
+		}
+	}
+	else {
+		mtx_unlock(rx->mtx);
 	}
 }
 
@@ -726,8 +727,9 @@ static void destructor(void *arg)
 
 	if (re_atomic_rlx(&rx->run)) {
 		rtprecv_enable(rx, false);
-		re_atomic_rlx_set(&rx->run, false);
+		re_atomic_rlx_set(&rx->stop, true);
 		thrd_join(rx->thr, NULL);
+		re_atomic_rlx_set(&rx->run, false);
 		re_thread_async_main_cancel((intptr_t)rx);
 	}
 	else {
